@@ -25,33 +25,72 @@
 
 ## 安装（Claude Code）
 
-```bash
-# 在 Claude Code 里：
-/plugin marketplace add /Users/shper/Documents/11_AI/agent-plugin
+本仓库同时是**插件**（`.claude-plugin/plugin.json`）和**单插件市场**（`.claude-plugin/marketplace.json`，把 `./` 注册为 `agent-plugin`），所以安装走标准的"加市场 → 装插件"两步。命令均在 Claude Code 会话内输入。
+
+```text
+# 1. 添加市场（marketplace）—— GitHub 简写
+/plugin marketplace add shper/agent-plugin
+
+#    私有库或简写不通时，用完整地址（任选其一）：
+#    /plugin marketplace add git@github.com:shper/agent-plugin.git
+#    /plugin marketplace add https://github.com/shper/agent-plugin.git
+
+# 2. 安装插件（格式：插件名@市场名，二者同名）
 /plugin install agent-plugin@agent-plugin
 
-# 验证：
+# 3. 验证
 /plugin list
-# 在任意项目中 /agent-plugin:to-consult <议题>
+#    然后在任意项目中：/agent-plugin:to-consult <议题>
 ```
 
-如果以后 push 到远程 git 仓库，把上面的本地路径换成 `git@github.com:...` 即可。
+> 本地开发 / 未 push 时，第 1 步可直接指向工作副本：
+> `/plugin marketplace add /Users/shper/Documents/11_AI/agent-plugin`
 
-## 配置外部模型（一次性）
+### 更新
 
-CLI transport（`claude` / `codex` / `cursor`）零 key 即用——复用对应工具的本地登录态。
-仅当你想加 OpenAI 兼容厂商（DeepSeek / qwen / ollama / GPT-4o…）作为外部声音时才需配置 API key。
+仓库推了新版本后：
+
+```text
+/plugin marketplace update agent-plugin   # 拉取市场最新清单
+/plugin install agent-plugin@agent-plugin # 重装到新版本
+```
+
+## 安装后配置 ai_client（多模型引擎）
+
+`/plugin install` 只分发 skills / commands / 脚本等清单内容，**不**装 Python 依赖、**不**配 key。`ai_client/` 在第一次被会诊调用前需要完成下面两步（按需）。
+
+### 前置：Python 运行环境（uv）
+
+`ai_client/` 用 [uv](https://docs.astral.sh/uv/) + PEP 723 自管依赖——脚本头部声明 `httpx`，`uv run` 自动建隔离环境，**不污染系统 Python**。只需装一次 uv：
+
+```bash
+# macOS / Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
+# 或 Homebrew：brew install uv
+
+# 自检（应能打印 help 并自动拉起 httpx）
+uv run "${CLAUDE_PLUGIN_ROOT}/ai_client/cli.py" --help
+```
+
+`${CLAUDE_PLUGIN_ROOT}` 由 Claude Code 注入，指向已安装的插件目录；在会诊主会话的 Bash 调用里可直接用。
+
+### 外部模型 key（仅 OpenAI 兼容厂商需要）
+
+CLI transport（`claude` / `codex` / `cursor`）**零 key 即用**——复用对应工具的本地登录态。
+仅当你想加 OpenAI 兼容厂商（DeepSeek / qwen / ollama / GPT-4o…）作为外部声音时，才需要配 `.env.toml`：
 
 ```bash
 # 推荐：放到 Claude 注入的插件持久数据区（跨版本更新保留）
 cp "${CLAUDE_PLUGIN_ROOT}/ai_client/example.env.toml" "${CLAUDE_PLUGIN_DATA}/.env.toml"
-$EDITOR "${CLAUDE_PLUGIN_DATA}/.env.toml"
+$EDITOR "${CLAUDE_PLUGIN_DATA}/.env.toml"   # 填 base_url + api_key
 
-# 或显式指定
+# 或显式指定路径
 export CONSULT_ENV_TOML=/path/to/your/.env.toml
 ```
 
-`.env.toml` 里的 `[to-consult.external_voices]` 决定每个宿主对应取哪些外部声音；详见模板注释与 `skills/to-consult/consult-common.md` §8。
+`config.py` 解析配置位置的优先级：`CONSULT_ENV_TOML` > `$CLAUDE_PLUGIN_DATA/.env.toml` > 脚本同目录 `.env.toml`（兜底，仅本地开发）。插件目录是共享只读资产，**别把 key 塞进去**。
+
+`.env.toml` 里的 `[to-consult.external_voices]` 决定每个宿主对应取哪些外部声音；详见模板注释、`ai_client/README.md` 与 `skills/to-consult/consult-common.md` §8。
 
 ## 留痕落点
 
