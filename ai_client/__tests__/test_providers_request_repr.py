@@ -45,12 +45,22 @@ def test_cli_request_repr_placeholder_hides_prompt():
     r = p.request_repr(long_prompt)
     assert r["transport"] == "cli"
     assert r["cmd"][0] == "codex"
-    assert r["cmd"][-1] == "<prompt:5000字>"            # 末项是占位
+    assert r["cmd"][-1] == "<prompt:5000字·stdin>"      # 占位标 stdin（prompt 不进 argv）
+    assert r["prompt_via"] == "stdin"
     assert long_prompt not in r["cmd"]                  # 完整 prompt 不入命令行
+
+
+def test_cli_build_argv_excludes_prompt():
+    """prompt 绝不进 argv —— 杜绝进程表/审计日志/shell history 泄漏（C2）。"""
+    for cls in (providers.CodexCliProvider, providers.CursorCliProvider, providers.ClaudeCliProvider):
+        p = cls("x", {"type": "x"})
+        argv = p._build_argv()
+        assert "secret-prompt-body" not in " ".join(argv)   # _build_argv 不接收 prompt，自然不含
+        assert isinstance(argv, list) and argv               # 非空 flags
 
 
 def test_cli_request_repr_keeps_model_flag():
     p = providers.CursorCliProvider("cursor", {"type": "cursor-cli", "model": "gpt-5"})
     r = p.request_repr("hello")
     assert "gpt-5" in r["cmd"]
-    assert r["cmd"][-1] == "<prompt:5字>"
+    assert r["cmd"][-1] == "<prompt:5字·stdin>"

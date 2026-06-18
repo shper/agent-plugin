@@ -75,13 +75,14 @@ ROOT="${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT}"   # 变量在 hook 外常为空→据
 uv run "$ROOT/ai_client/orchestrate.py" debate \
   --task "$TASK" \
   --pro  <ext0> --con <ext1> \
+  --fallback <宿主底座 provider> \
   "<议题>" \
   [--context "<自包含背景>"] [--file <doc>]
 ```
 
-`<ext0>`/`<ext1>` = `external_voices[host]` 两席（debate 命中用户「用 X 一起讨论」分流时把对应席位覆盖为 X，见 consult-common §6）。
+`<ext0>`/`<ext1>` = `external_voices[host]` 两席（debate 命中用户「用 X 一起讨论」分流时把对应席位覆盖为 X，见 consult-common §6）。`--fallback` 传**宿主底座** provider（Claude 宿主=某 `claude-cli` provider）：某辩方失败时脚本**确定性补位**重试、打 `degraded` 标注，降级与编排同样可复现（consult-common §9）。
 
-输出：结构化 JSON，`steps` 含各步 text/error，主会话据此读辩论记录裁决。
+输出：结构化 JSON，`steps` 含各步 text/error（补位步另带 `degraded`/`requested`/`note`），顶层 `degraded` 列降级步骤；主会话据此读辩论记录裁决。
 
 ### 6.2 主裁收口（接 SKILL.md Step 6）
 
@@ -90,7 +91,7 @@ uv run "$ROOT/ai_client/orchestrate.py" debate \
    - ≥85 → 进裁决（§5 contract）
    - 60–84 → 主会话再调一次 `orchestrate.py` 续辩、或主裁直接二轮反驳
    - <60 → 标重大争议输出完整记录 + 强制裁决
-3. 任何步 `error`/`skipped` → 按 consult-common §9 降级（外部不足用宿主底座补位辩方并标"<角色>与收口同底座、未经完全独立第三方"；裁判恒=主裁）。
+3. 任何步 `error`/`skipped` → 已传 `--fallback` 则脚本已确定性补位（读 `degraded`/`note`）；若**对抗双方都降级到同一宿主底座**（`degraded` 含 pro+con 两侧），按 consult-common §9 **流产并告知**，不出"伪交叉验证"裁决（裁判恒=主裁）。
 4. 收口结论按 SKILL.md Step 8 写入留痕（`consult_log.py verdict --mode debate`）。
 
 降级特例：**裁判失败**输出已收集的「立论+反驳」让用户判断，**不把收口降级到对抗方同实例**（consult-common §9）。

@@ -101,12 +101,13 @@ ROOT="${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT}"   # 变量在 hook 外常为空→据
 uv run "$ROOT/ai_client/orchestrate.py" refine \
   --task "$TASK" \
   --ext0 <ext0> --ext1 <ext1> \
+  --fallback <宿主底座 provider> \
   "<任务>" \
   --direction two-way|one-way \
   [--context "<自包含背景>"] [--file <doc>] [--skip-gen]
 ```
 
-`<ext0>`/`<ext1>` = `external_voices[host]` 两席（refine `two-way`=A/B、`one-way`=生成/质检）。`--skip-gen` **仅 `one-way` 生效**——已有草稿时直接进质检。
+`<ext0>`/`<ext1>` = `external_voices[host]` 两席（refine `two-way`=A/B、`one-way`=生成/质检）。`--skip-gen` **仅 `one-way` 生效**——已有草稿时直接进质检。`--fallback` 传**宿主底座** provider：某外部步骤失败时脚本**确定性补位**重试、打 `degraded` 标注（consult-common §9）。注：`one-way` 质检者须 ≠ 生成者底座，若两者都降级到同一 fallback 则质检失去独立性，主裁应据 `degraded` 标注折扣或流产。
 
 ### 6.2 主裁收口（接 SKILL.md Step 6）
 

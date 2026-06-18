@@ -5,7 +5,8 @@
 
 留痕（to-consult/consult-common.md §7）：每个 Provider 另暴露 `request_repr(prompt) -> dict`，给出**已脱敏、
 可序列化**的请求描述（CLI 的命令行 / API 的请求行），供 consult_log 记录。脱敏铁律：API 永不
-吐 api_key、不吐 messages 正文；CLI 命令行里 prompt 用占位符（正文由 consult_log 另记一次）。
+吐 api_key、不吐 messages 正文；CLI 的 prompt 一律走 **stdin**（不进 argv，杜绝进程表/审计日志/
+shell history 泄漏），命令行里只留占位（正文由 consult_log 另记一次、且经敏感串脱敏）。
 """
 
 from __future__ import annotations
@@ -40,28 +41,37 @@ class Provider(ABC):
 
 
 class CliProvider(Provider):
-    """CLI 子进程类 provider 的公共逻辑：子类只定义 `_build_cmd`，`ask` / `request_repr` 共用。
+    """CLI 子进程类 provider 的公共逻辑：子类只定义 `_build_argv`（仅 flags，**不含 prompt**）。
 
-    约定：`_build_cmd` 把完整 prompt 作为**末项** append（request_repr 据此把它换成占位符）。
+    **prompt 一律走 stdin，绝不进 argv**——否则完整 prompt 会出现在系统进程表（`ps`）、
+    审计日志、shell history 里，构成与会诊议题等敏感度的系统级泄漏面（to-consult C2 修复）。
+    claude / codex / cursor 三个 CLI 均支持「省略位置 prompt → 从 stdin 读」（已实测）。
+    `request_repr` 据此只在命令行占位里标 `·stdin`，真正正文由 consult_log 另记（仍会脱敏）。
     """
 
-    def _build_cmd(self, prompt: str) -> list[str]:
+    def _build_argv(self) -> list[str]:
+        """返回 CLI 命令行（仅 flags，不含 prompt）。"""
         raise NotImplementedError
 
     async def ask(self, prompt: str, *, timeout: float = _DEFAULT_TIMEOUT) -> str:
-        return await _run_cli(self._build_cmd(prompt), timeout=timeout, pid=self.pid)
+        return await _run_cli(self._build_argv(), timeout=timeout, pid=self.pid, stdin_input=prompt)
 
     def request_repr(self, prompt: str) -> dict[str, Any]:
-        cmd = self._build_cmd(prompt)
-        # 末项是完整 prompt——换占位避免命令行复述巨型 prompt（正文由 consult_log 另记一次）。
-        safe = cmd[:-1] + [f"<prompt:{len(prompt)}字>"] if cmd else cmd
-        return {"transport": "cli", "cmd": safe}
+        # prompt 经 stdin 投递，命令行只留占位——既不入 argv（无进程表泄漏），正文又由 consult_log 另记。
+        return {
+            "transport": "cli",
+            "cmd": self._build_argv() + [f"<prompt:{len(prompt)}字·stdin>"],
+            "prompt_via": "stdin",
+        }
 
 
 class CodexCliProvider(CliProvider):
-    """走 `codex exec`：只读沙箱 + ephemeral + 不吃用户 config/rules，复用 ChatGPT 登录态，无需 key。"""
+    """走 `codex exec`：只读沙箱 + ephemeral + 不吃用户 config/rules，复用 ChatGPT 登录态，无需 key。
 
-    def _build_cmd(self, prompt: str) -> list[str]:
+    省略位置 prompt → codex 从 stdin 读 instructions（已实测），故 prompt 不进 argv。
+    """
+
+    def _build_argv(self) -> list[str]:
         cmd = [
             "codex", "exec",
             "--sandbox", "read-only",   # 即便模型生成命令也只读
@@ -71,7 +81,6 @@ class CodexCliProvider(CliProvider):
         ]
         if self.model:
             cmd += ["-m", self.model]
-        cmd.append(prompt)
         return cmd
 
 
@@ -79,9 +88,10 @@ class CursorCliProvider(CliProvider):
     """走 `cursor-agent -p --mode ask`：只读问答，复用 Cursor 登录态，无需 key。
 
     `--model` 可在 gpt-5 / sonnet-4 / sonnet-4-thinking 间切（`cursor-agent --list-models` 查）。
+    省略位置 prompt → cursor-agent 从 stdin 读（已实测），故 prompt 不进 argv。
     """
 
-    def _build_cmd(self, prompt: str) -> list[str]:
+    def _build_argv(self) -> list[str]:
         cmd = [
             "cursor-agent", "-p",            # 非交互打印模式
             "--output-format", "text",
@@ -90,7 +100,6 @@ class CursorCliProvider(CliProvider):
         ]
         if self.model:
             cmd += ["--model", self.model]
-        cmd.append(prompt)
         return cmd
 
 
@@ -100,16 +109,16 @@ class ClaudeCliProvider(CliProvider):
     复用 Claude Code 登录态，无需 key。用途：非 Claude 宿主（Codex / Cursor）下让
     Claude 当外部盲区声音——对称补全 codex / cursor，使会诊在任何宿主都能跨底座互补。
     `--model` 可选；缺省用 claude 默认模型。
+    省略位置 prompt → claude print 模式从 stdin 读（已实测），故 prompt 不进 argv。
     """
 
-    def _build_cmd(self, prompt: str) -> list[str]:
+    def _build_argv(self) -> list[str]:
         cmd = [
             "claude", "-p",                  # print 模式，非交互
             "--permission-mode", "plan",     # 只读规划：不写文件、不跑命令
         ]
         if self.model:
             cmd += ["--model", self.model]
-        cmd.append(prompt)
         return cmd
 
 
@@ -154,15 +163,23 @@ class OpenAICompatProvider(Provider):
         }
 
 
-async def _run_cli(cmd: list[str], *, timeout: float, pid: str) -> str:
-    """异步跑 CLI 子进程，返回 stdout。超时杀进程，非零退出码抛错。"""
+async def _run_cli(
+    cmd: list[str], *, timeout: float, pid: str, stdin_input: str | None = None
+) -> str:
+    """异步跑 CLI 子进程，返回 stdout。超时杀进程，非零退出码抛错。
+
+    `stdin_input` 非空时把 prompt 经 stdin 喂进去（**避免 prompt 进 argv → 进程表泄漏**）；
+    为空则 stdin 接 DEVNULL，杜绝子进程误等交互输入而挂起。
+    """
     proc = await asyncio.create_subprocess_exec(
         *cmd,
+        stdin=asyncio.subprocess.PIPE if stdin_input is not None else asyncio.subprocess.DEVNULL,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )
+    payload = stdin_input.encode() if stdin_input is not None else None
     try:
-        out, err = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+        out, err = await asyncio.wait_for(proc.communicate(input=payload), timeout=timeout)
     except asyncio.TimeoutError:
         proc.kill()
         await proc.wait()

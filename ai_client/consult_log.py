@@ -15,7 +15,8 @@
 
 边界：
   - 纯标准库（datetime / pathlib / argparse / re），无三方依赖——可被 orchestrate 顶层 import 而不破坏「无 httpx 单测」。
-  - 脱敏：API 请求**绝不含 api_key**、不含 messages 正文；命令行里 prompt 用占位符，正文另记一次。
+  - 脱敏：①API 请求**绝不含 api_key**、不含 messages 正文；②CLI prompt 走 stdin、命令行只留占位（不进 argv/进程表）；
+    ③落盘的 prompt/响应**正文**经敏感串脱敏（密钥/令牌/私钥占位，见 `_redact`）——兜底而非保证，敏感议题是否会诊仍由用户判断。
   - **非阻塞**：record_* 写盘失败只 warn 到 stderr，绝不抛错中断会诊（对齐 to-consult/consult-common.md §9「增益不是依赖」）。
 """
 
@@ -83,6 +84,37 @@ def _truncate(text: str | None, limit: int = _PROMPT_MAX) -> str:
     return f"{head}\n…<已截断，共 {len(text)} 字，省略中段>…\n{tail}"
 
 
+# ── 敏感串脱敏（落盘前，仅作用于留痕副本，不影响发给模型的真 prompt）──────────
+# prompt 常嵌入 --file 文档全文（cli.py/_embed_files），可能含密钥/令牌/私钥；这些一旦
+# 明文落 .consult-cache/session.md，就只剩「用户自行 gitignore」一道防线。这里在落盘前做
+# 保守的高置信脱敏：宁可漏放也尽量不误伤正文（兜底而非保证；敏感议题是否会诊仍由用户判断）。
+
+_REDACTED = "‹已脱敏:{}›"
+
+# 显式赋值：api_key/secret/token/password = "xxx"（保留键名，只换值）
+_ASSIGN_RE = re.compile(
+    r"(?i)\b(api[_-]?key|secret|token|password|passwd|pwd|access[_-]?key)(\s*[:=]\s*)['\"]?[^\s'\",;]{6,}"
+)
+# 前缀型令牌 / 私钥整块
+_PREFIX_PATTERNS = [
+    (re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----.*?-----END [A-Z ]*PRIVATE KEY-----", re.S), "PRIVATE_KEY"),
+    (re.compile(r"\b(?:sk|ark|rk)-[A-Za-z0-9_-]{12,}"), "TOKEN"),                       # OpenAI/Anthropic sk- · volces ark-
+    (re.compile(r"\b(?:ghp|gho|ghs|ghu|glpat|xoxb|xoxp|xoxa|xoxr)[-_][A-Za-z0-9_-]{10,}"), "TOKEN"),  # GitHub/GitLab/Slack
+    (re.compile(r"\bAKIA[0-9A-Z]{16}\b"), "AWS_KEY"),
+    (re.compile(r"(?i)\bBearer\s+[A-Za-z0-9._\-]{8,}"), "BEARER"),
+]
+
+
+def _redact(text: str | None) -> str:
+    """把常见密钥/令牌/私钥在落盘前替换为占位。保守匹配，作用于留痕副本不改原 prompt。"""
+    if not text:
+        return text or ""
+    text = _ASSIGN_RE.sub(lambda m: f"{m.group(1)}{m.group(2)}{_REDACTED.format('ASSIGN')}", text)
+    for rx, label in _PREFIX_PATTERNS:
+        text = rx.sub(_REDACTED.format(label), text)
+    return text
+
+
 # ── markdown 渲染 ─────────────────────────────────────────────────────────
 
 def _render_header(task: str, mode: str, trigger: str, host: str, models: str) -> str:
@@ -128,13 +160,13 @@ def _render_call(
         f"`{_fmt_request(request)}`",
         "**prompt**:",
         "```text",
-        _truncate(prompt),
+        _truncate(_redact(prompt)),                  # 先脱敏再截断：密钥不因落在中段而漏脱敏
         "```",
     ]
     if error:
-        lines += ["**错误**:", str(error), ""]
+        lines += ["**错误**:", _redact(str(error)), ""]
     else:
-        lines += ["**生响应**:", response if response is not None else "(空)", ""]
+        lines += ["**生响应**:", _redact(response) if response is not None else "(空)", ""]
     return "\n".join(lines) + "\n"
 
 

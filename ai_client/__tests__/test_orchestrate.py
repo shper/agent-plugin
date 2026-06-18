@@ -84,6 +84,48 @@ def test_debate_opponent_failure_skips_rebuttal():
     assert env["steps"]["con_rebuttal"]["error"].startswith("boom:")
 
 
+# ── 降级补位（C3：§9 外部失败→宿主底座确定性补位）────────────────────────
+
+def test_step_fallback_substitutes_on_failure():
+    caller = make_caller(fail={"cursor"})  # 反方挂
+    env = asyncio.run(orchestrate.run_debate(
+        caller, topic="t", context="", pro="codex", con="cursor", fallback="claude"))
+
+    # 反方立论失败 → 由宿主底座 claude 补位，整轮仍 ok
+    assert env["ok"] is True
+    con_open = env["steps"]["con_opening"]
+    assert con_open["error"] is None
+    assert con_open["provider"] == "claude"      # 实际答者是补位底座
+    assert con_open["degraded"] is True
+    assert con_open["requested"] == "cursor"     # 原请求席位
+    assert "同底座" in con_open["note"]
+    # envelope 顶层汇总降级步骤，供主裁判断同源折扣
+    assert "con_opening" in env["degraded"]
+    # 反方反驳也由 claude 补位（cursor 仍挂）
+    assert env["steps"]["con_rebuttal"]["provider"] == "claude"
+
+
+def test_step_fallback_also_fails_records_both_errors():
+    caller = make_caller(fail={"cursor", "claude"})  # 反方 + 补位都挂
+    env = asyncio.run(orchestrate.run_debate(
+        caller, topic="t", context="", pro="codex", con="cursor", fallback="claude"))
+
+    assert env["ok"] is False
+    con_open = env["steps"]["con_opening"]
+    assert con_open["error"] is not None
+    assert "补位" in con_open["error"]           # 两段错误都记下
+    assert "degraded" not in env                  # 没有任何步骤成功降级
+
+
+def test_no_fallback_keeps_legacy_error_behavior():
+    caller = make_caller(fail={"cursor"})
+    env = asyncio.run(orchestrate.run_debate(
+        caller, topic="t", context="", pro="codex", con="cursor"))  # 不传 fallback
+    assert env["ok"] is False
+    assert env["steps"]["con_opening"]["error"].startswith("boom:")
+    assert "degraded" not in env
+
+
 # ── reflection ──────────────────────────────────────────────────────────
 
 def test_reflection_parallel_and_cross_review():

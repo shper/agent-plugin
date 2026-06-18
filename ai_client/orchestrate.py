@@ -15,8 +15,11 @@ refine（精炼）一形态两方向，互评方向作参数（原 reflection + 
   two-way = 双声独立生成 + 交叉互评 + 合并；one-way = 生成 + 单向质检 + 修订（--skip-gen 仅质检）。
 
 用法（主会话走 Bash；ROOT = 插件根，CLAUDE_PLUGIN_ROOT/PLUGIN_ROOT 仅 hook 环境可靠、skill 内据 skill 目录上两级代入；分析文档加 --file，可重复）：
-  uv run "$ROOT/ai_client/orchestrate.py" debate --pro  codex --con  cursor "<议题>" [--context ...] [--file ...]
-  uv run "$ROOT/ai_client/orchestrate.py" refine --ext0 codex --ext1 cursor "<任务>" [--direction two-way|one-way] [--context ...] [--file ...] [--skip-gen]
+  uv run "$ROOT/ai_client/orchestrate.py" debate --pro  codex --con  cursor "<议题>" [--context ...] [--file ...] [--fallback <宿主底座>]
+  uv run "$ROOT/ai_client/orchestrate.py" refine --ext0 codex --ext1 cursor "<任务>" [--direction two-way|one-way] [--context ...] [--file ...] [--skip-gen] [--fallback <宿主底座>]
+
+降级（§9）已下沉为确定性：给 --fallback <宿主底座 provider> 后，任一外部步骤失败即由该底座补位重试，
+对应步骤打 degraded=True + requested + note（同源折扣），envelope 顶层附 degraded 列表——不再依赖主会话读 JSON 后自觉手动补位。
 
 stdout = 结构化 JSON；主会话解析后由当前宿主主模型按 to-consult/mode-debate.md「收口契约」/ mode-refine.md「收口契约」收口。
 exit: 0 全部步骤成功 / 1 有步骤失败或跳过（JSON 仍输出，error 字段标注，主会话据此降级）/ 2 配置或参数错误。
@@ -122,40 +125,68 @@ def _skipped(provider: str, reason: str) -> dict:
     return {"provider": provider, "text": None, "error": f"skipped: {reason}"}
 
 
-async def _step(caller: Caller, provider: str, prompt: str) -> dict:
+async def _step(caller: Caller, provider: str, prompt: str, *, fallback: str = "") -> dict:
+    """跑一步外部调用。失败时若给了 `fallback`（宿主底座）则**确定性补位**重试一次。
+
+    这把 consult-common §9『外部失败→宿主底座补位』从「主会话读 JSON 后自觉手动补」下沉成
+    脚本内逻辑，使降级与编排同样确定性可复现（to-consult C3 修复）。补位成功的步骤打
+    `degraded=True` + `requested`（原 provider）+ `note`（同源折扣标注），供主裁收口如实暴露。
+    """
     try:
         text = await caller(provider, prompt)
         return {"provider": provider, "text": text, "error": None}
     except Exception as e:  # noqa: BLE001 —— 编排边界：单步失败转 error 字段，不中断其它步骤
+        if fallback and fallback != provider:
+            try:
+                text = await caller(fallback, prompt)
+                return {
+                    "provider": fallback, "text": text, "error": None,
+                    "degraded": True, "requested": provider,
+                    "note": (f"{provider} 失败（{e}），由宿主底座 {fallback} 补位"
+                             "——与收口同底座、未经完全独立第三方"),
+                }
+            except Exception as e2:  # noqa: BLE001 —— 补位亦失败：如实记两段错误
+                return {"provider": provider, "text": None,
+                        "error": f"{e}；补位 {fallback} 亦失败：{e2}"}
         return {"provider": provider, "text": None, "error": str(e)}
 
 
 def _envelope(mode: str, providers: dict, steps: dict, **extra) -> dict:
     ok = all(s.get("error") is None for s in steps.values())
-    return {"mode": mode, "providers": providers, "ok": ok, "steps": steps, **extra}
+    env = {"mode": mode, "providers": providers, "ok": ok, "steps": steps, **extra}
+    degraded = [k for k, s in steps.items() if s.get("degraded")]
+    if degraded:
+        # 主裁据此判断同源折扣：若对抗双方都降级到同一宿主底座，§9 建议流产而非降级。
+        env["degraded"] = degraded
+    return env
 
 
 # ── 三形态编排（收口留主会话；这里只跑到收口前）──────────────────────────
 
 async def run_debate(
-    caller: Caller, *, topic: str, context: str, pro: str, con: str, material: str = ""
+    caller: Caller, *, topic: str, context: str, pro: str, con: str,
+    material: str = "", fallback: str = ""
 ) -> dict:
-    """正方立论 ‖ 反方立论 → 正方反驳 → 反方反驳（带正方反驳）。裁决=主裁，留主会话。"""
+    """正方立论 ‖ 反方立论 → 正方反驳 → 反方反驳（带正方反驳）。裁决=主裁，留主会话。
+
+    `fallback`（宿主底座 provider）非空时，任一外部步骤失败即确定性补位（§9，见 `_step`）。
+    """
     base = _context_block(topic, context, material)
     pro_open, con_open = await asyncio.gather(
-        _step(caller, pro, _p_opening("正方", base)),
-        _step(caller, con, _p_opening("反方", base)),
+        _step(caller, pro, _p_opening("正方", base), fallback=fallback),
+        _step(caller, con, _p_opening("反方", base), fallback=fallback),
     )
     # 反驳串行：正方先驳反方立论，反方后驳（读得到正方反驳）。对方立论缺失则跳过反驳。
     if con_open["error"]:
         pro_reb = _skipped(pro, "反方立论失败，无可反驳")
     else:
-        pro_reb = await _step(caller, pro, _p_rebuttal("正方", base, con_open["text"]))
+        pro_reb = await _step(caller, pro, _p_rebuttal("正方", base, con_open["text"]), fallback=fallback)
     if pro_open["error"]:
         con_reb = _skipped(con, "正方立论失败，无可反驳")
     else:
         con_reb = await _step(
-            caller, con, _p_rebuttal("反方", base, pro_open["text"], prior_rebuttal=pro_reb.get("text"))
+            caller, con, _p_rebuttal("反方", base, pro_open["text"], prior_rebuttal=pro_reb.get("text")),
+            fallback=fallback,
         )
     steps = {
         "pro_opening": pro_open,
@@ -167,19 +198,23 @@ async def run_debate(
 
 
 async def run_reflection(
-    caller: Caller, *, topic: str, context: str, a: str, b: str, material: str = ""
+    caller: Caller, *, topic: str, context: str, a: str, b: str,
+    material: str = "", fallback: str = ""
 ) -> dict:
-    """A、B 并行独立生成 → 交叉互评（A 评 B ‖ B 评 A）。合并=主裁，留主会话。"""
+    """A、B 并行独立生成 → 交叉互评（A 评 B ‖ B 评 A）。合并=主裁，留主会话。
+
+    `fallback` 非空时任一外部步骤失败即确定性补位（§9，见 `_step`）。
+    """
     base = _context_block(topic, context, material)
     draft_a, draft_b = await asyncio.gather(
-        _step(caller, a, _p_generate(base)),
-        _step(caller, b, _p_generate(base)),
+        _step(caller, a, _p_generate(base), fallback=fallback),
+        _step(caller, b, _p_generate(base), fallback=fallback),
     )
 
     async def _maybe_review(reviewer: str, reviewer_label: str, target: dict, target_label: str) -> dict:
         if target["error"]:
             return _skipped(reviewer, f"{target_label} 初版失败，无可互评")
-        return await _step(caller, reviewer, _p_cross_review(reviewer_label, base, target["text"]))
+        return await _step(caller, reviewer, _p_cross_review(reviewer_label, base, target["text"]), fallback=fallback)
 
     review_a_on_b, review_b_on_a = await asyncio.gather(
         _maybe_review(a, "Agent A", draft_b, "B"),
@@ -203,8 +238,12 @@ async def run_review(
     qc: str,
     material: str = "",
     skip_gen: bool = False,
+    fallback: str = "",
 ) -> dict:
-    """生成 → 质检（H/M/L+评分）。仅质检模式用 material 当初版。修订=主裁，留主会话。"""
+    """生成 → 质检（H/M/L+评分）。仅质检模式用 material 当初版。修订=主裁，留主会话。
+
+    `fallback` 非空时任一外部步骤失败即确定性补位（§9，见 `_step`）。
+    """
     base = _context_block(topic, context, material)
     if skip_gen:
         if not material:
@@ -212,12 +251,12 @@ async def run_review(
         else:
             draft = {"provider": "user-material", "text": material, "error": None}
     else:
-        draft = await _step(caller, gen, _p_generate(base))
+        draft = await _step(caller, gen, _p_generate(base), fallback=fallback)
 
     if draft["error"]:
         qc_report = _skipped(qc, "初版缺失，无可质检")
     else:
-        qc_report = await _step(caller, qc, _p_qc(base, draft["text"]))
+        qc_report = await _step(caller, qc, _p_qc(base, draft["text"]), fallback=fallback)
     steps = {"draft": draft, "qc_report": qc_report}
     return _envelope("review-chain", {"gen": gen if not skip_gen else "user-material", "qc": qc}, steps)
 
@@ -232,19 +271,24 @@ async def run_refine(
     ext1: str,
     material: str = "",
     skip_gen: bool = False,
+    fallback: str = "",
 ) -> dict:
     """精炼形态路由（to-consult/mode-refine.md）：一形态两方向，复用 reflection / review-chain 拓扑。
 
     two-way = 双声独立生成 + 交叉互评（ext0=A, ext1=B）；
     one-way = 生成 + 单向质检（ext0=生成, ext1=质检；--skip-gen 用 material 当初版）。
+    `fallback`（宿主底座）非空时外部步骤失败即确定性补位（§9）。
     收口（合并/修订 = 主裁）留主会话。envelope 的 mode 统一为 'refine' + direction 字段，
     底层 run_* 仍返回各自拓扑 mode（保留其单测语义）。
     """
     if direction == "two-way":
-        env = await run_reflection(caller, topic=topic, context=context, a=ext0, b=ext1, material=material)
+        env = await run_reflection(
+            caller, topic=topic, context=context, a=ext0, b=ext1, material=material, fallback=fallback
+        )
     else:  # one-way
         env = await run_review(
-            caller, topic=topic, context=context, gen=ext0, qc=ext1, material=material, skip_gen=skip_gen
+            caller, topic=topic, context=context, gen=ext0, qc=ext1,
+            material=material, skip_gen=skip_gen, fallback=fallback,
         )
     env["mode"] = "refine"
     env["direction"] = direction
@@ -320,6 +364,8 @@ def _add_common(p: argparse.ArgumentParser) -> None:
                    help="把文件内容作为材料嵌入，可重复")
     p.add_argument("--timeout", type=float, default=120.0, help="单步调用超时（秒）")
     p.add_argument("--task", default="", help="留痕会话目录名（consult_log.py start 取得；漏传则兜底）")
+    p.add_argument("--fallback", default="", metavar="PROVIDER",
+                   help="宿主底座 provider id：外部步骤失败时确定性补位（§9 降级，步骤打 degraded 标注）")
 
 
 def main() -> int:
@@ -348,10 +394,13 @@ def main() -> int:
         return 2
 
     task = args.task or _fallback_task()
+    # fallback（宿主底座）若给了也要纳入 provider 校验，否则补位时会 KeyError。
+    fb = [args.fallback] if args.fallback else []
     if args.mode == "debate":
-        caller = _build_caller([args.pro, args.con], args.timeout, task=task, mode="debate")
+        caller = _build_caller([args.pro, args.con] + fb, args.timeout, task=task, mode="debate")
         env = asyncio.run(run_debate(caller, topic=args.topic, context=args.context,
-                                     pro=args.pro, con=args.con, material=material))
+                                     pro=args.pro, con=args.con, material=material,
+                                     fallback=args.fallback))
     else:  # refine
         if args.skip_gen and args.direction != "one-way":
             print("--skip-gen 仅 one-way（质检）方向有效", file=sys.stderr)
@@ -359,11 +408,12 @@ def main() -> int:
         if args.skip_gen and not material:
             print("仅质检模式（--skip-gen）需用 --file 提供待审材料", file=sys.stderr)
             return 2
-        caller = _build_caller([args.ext0, args.ext1], args.timeout,
+        caller = _build_caller([args.ext0, args.ext1] + fb, args.timeout,
                                task=task, mode=f"refine/{args.direction}")
         env = asyncio.run(run_refine(caller, direction=args.direction, topic=args.topic,
                                      context=args.context, ext0=args.ext0, ext1=args.ext1,
-                                     material=material, skip_gen=args.skip_gen))
+                                     material=material, skip_gen=args.skip_gen,
+                                     fallback=args.fallback))
 
     print(json.dumps(env, ensure_ascii=False, indent=2))
     return 0 if env["ok"] else 1

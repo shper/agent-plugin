@@ -111,6 +111,50 @@ def test_record_verdict_appends(tmp_path, monkeypatch):
     assert "裁决：用 SSE，置信度 88%" in text
 
 
+# ── _redact（落盘前敏感串脱敏，C2）─────────────────────────────────────────
+
+def test_redact_common_secret_shapes():
+    cases = [
+        "key=sk-ABCDEF0123456789abcdef",            # OpenAI/Anthropic 前缀
+        "ark-31635c33-1b02-4f84-acc0-48b021604125", # volces ark 前缀
+        "token ghp_ABCDEFGHIJKLMNOP0123",           # GitHub
+        "AKIAIOSFODNN7EXAMPLE",                      # AWS Access Key ID
+        "Authorization: Bearer eyJhbGciOiJIUzI1NiJ9", # Bearer
+        'api_key = "super-secret-value-123"',       # 显式赋值
+    ]
+    for raw in cases:
+        out = consult_log._redact(raw)
+        assert "已脱敏" in out, raw
+    # 私钥整块
+    pem = "-----BEGIN RSA PRIVATE KEY-----\nMIIabc\n-----END RSA PRIVATE KEY-----"
+    assert "MIIabc" not in consult_log._redact(pem)
+
+
+def test_redact_keeps_assign_keyname_drops_value():
+    out = consult_log._redact('api_key = "ark-DEADBEEFDEADBEEF1234"')
+    assert "api_key" in out                  # 键名保留（可读）
+    assert "ark-DEADBEEF" not in out         # 值被脱敏
+
+
+def test_redact_leaves_plain_text_untouched():
+    plain = "我们该用 SSE 还是 WebSocket？延迟和重连是关键考量。"
+    assert consult_log._redact(plain) == plain
+
+
+def test_record_call_redacts_secret_in_prompt_and_response(tmp_path, monkeypatch):
+    monkeypatch.setattr(consult_log, "_CACHE_DIR", tmp_path)
+    consult_log.record_call(
+        task="sec", mode="panel", provider="glm",
+        request={"transport": "api", "url": "u", "model": "m", "auth": "none", "prompt_chars": 9},
+        prompt="分析这份配置：api_key = sk-LEAKED0123456789abcd",
+        response="发现密钥 ark-9999888877776666aaaa 建议轮换",
+    )
+    text = (tmp_path / "sec" / "session.md").read_text(encoding="utf-8")
+    assert "sk-LEAKED0123456789abcd" not in text    # prompt 正文脱敏
+    assert "ark-9999888877776666aaaa" not in text   # 响应正文脱敏
+    assert "已脱敏" in text
+
+
 # ── _fmt_request ──────────────────────────────────────────────────────────
 
 def test_fmt_request_cli():
