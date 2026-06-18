@@ -1,0 +1,14 @@
+{
+  "name": "agent-plugin",
+  "owner": {
+    "name": "Shper",
+    "email": "shper87@gmail.com"
+  },
+  "plugins": [
+    {
+      "name": "agent-plugin",
+      "source": "./",
+      "description": "宿主无关的多模型会诊引擎（panel / debate / refine + direct），跨厂商外部声音盲区互补。"
+    }
+  ]
+}
