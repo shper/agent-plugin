@@ -3,7 +3,7 @@
 # ///
 """会诊留痕 —— 把一次 to-consult / ai_client「任务」的过程强制落到磁盘。
 
-定位（CONSULT-GUIDE §7）：
+定位（to-consult/consult-common.md §7）：
   会诊引擎的产出（外部模型那次**不可复现**的生响应、用了哪些模型、发起的命令行/API 请求、
   主裁收口结论）默认只进 stdout、跑完即丢。本模块是所有留痕的**单一写入点**，把它们
   追加到 `<宿主项目根>/.consult-cache/to-consult/<任务名>/session.md`（宿主项目 gitignore，属过程留痕≠产出落盘）。
@@ -16,7 +16,7 @@
 边界：
   - 纯标准库（datetime / pathlib / argparse / re），无三方依赖——可被 orchestrate 顶层 import 而不破坏「无 httpx 单测」。
   - 脱敏：API 请求**绝不含 api_key**、不含 messages 正文；命令行里 prompt 用占位符，正文另记一次。
-  - **非阻塞**：record_* 写盘失败只 warn 到 stderr，绝不抛错中断会诊（对齐 CONSULT-GUIDE §9「增益不是依赖」）。
+  - **非阻塞**：record_* 写盘失败只 warn 到 stderr，绝不抛错中断会诊（对齐 to-consult/consult-common.md §9「增益不是依赖」）。
 """
 
 from __future__ import annotations

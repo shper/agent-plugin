@@ -6,9 +6,8 @@
 
 ## 提供什么
 
-- **`/agent-plugin:to-consult`** — 多模型会诊**手动入口**：召集多个角色（含跨厂商模型）按某种协作拓扑出观点、当前宿主主模型收口。
+- **`/agent-plugin:to-consult`** — 多模型会诊**手动入口**：召集多个角色（含跨厂商模型）按某种协作拓扑出观点、当前宿主主模型收口。机制规范见 `skills/to-consult/SKILL.md`（入口 + 形态判定 + 流程）+ 同目录 `consult-common.md`（共享规范）+ `mode-{panel,debate,refine,direct}.md`（形态拓扑 / 角色 / 收口契约的单一来源）。
 - **`/agent-plugin:to-grill`** — **逐问审问**引擎：grill 式一次一个问题把模糊想法/方案/决策树逼清楚；审问已有草稿文件会回写决策段，审问对话不落盘。命中真权衡/高风险时内部点燃 to-consult。
-- **`CONSULT-GUIDE.md`** — 会诊机制规范（形态 / 角色 / 收口契约的单一来源）。
 - **`scripts/panel.js`** — Claude Code 宿主下 panel persona 批的 Workflow fan-out。
 - **`ai_client/`** — 独立 Python 模块（cli / orchestrate / providers / consult_log，PEP 723 + uv）。
 
@@ -22,7 +21,7 @@
 | `refine` (`one-way`) | 单向质检修订 | 初版 + 质检 → 主裁修订 |
 | `direct` | 用户点名"只用 X" | 单底座直问 + 原样转述（非协作） |
 
-机制全文见 `CONSULT-GUIDE.md`。
+机制全文见 `skills/to-consult/SKILL.md`（入口 + 形态判定 + 流程）+ 同目录 `consult-common.md`（共享规范）+ `mode-{panel,debate,refine,direct}.md`（形态专属）。
 
 ## 安装（Claude Code）
 
@@ -52,7 +51,7 @@ $EDITOR "${CLAUDE_PLUGIN_DATA}/.env.toml"
 export CONSULT_ENV_TOML=/path/to/your/.env.toml
 ```
 
-`.env.toml` 里的 `[to-consult.external_voices]` 决定每个宿主对应取哪些外部声音；详见模板注释与 `CONSULT-GUIDE.md` §8。
+`.env.toml` 里的 `[to-consult.external_voices]` 决定每个宿主对应取哪些外部声音；详见模板注释与 `skills/to-consult/consult-common.md` §8。
 
 ## 留痕落点
 
@@ -64,7 +63,7 @@ export CONSULT_ENV_TOML=/path/to/your/.env.toml
 
 引擎本身**宿主无关**——主裁恒等于当前宿主主模型；外部声音按 `[to-consult.external_voices][host]` 取池。但 codex / cursor 没有统一的"插件"标准，没法一键安装。建议：
 
-- **Codex**：在你的全局 `AGENTS.md` 或项目 `AGENTS.md` 引用本仓库的 `CONSULT-GUIDE.md` + `skills/to-consult/SKILL.md` 路径，把它们当作"会诊操作手册"喂给主会话；脚本调用走 `uv run /Users/shper/Documents/11_AI/agent-plugin/ai_client/...`（绝对路径或自己软链）。
+- **Codex**：在你的全局 `AGENTS.md` 或项目 `AGENTS.md` 引用本仓库的 `skills/to-consult/SKILL.md` + 同目录 `consult-common.md` + `mode-*.md` 路径，把它们当作"会诊操作手册"喂给主会话；脚本调用走 `uv run /Users/shper/Documents/11_AI/agent-plugin/ai_client/...`（绝对路径或自己软链）。
 - **Cursor**：同理，写进 `.cursorrules` 或项目 rules 即可。
 - 三个工具的登录态彼此独立，但 `ai_client/` 通过 CLI 子进程复用各自登录态——任何一个工具当宿主，另两个都能作为外部声音。
 
@@ -95,7 +94,13 @@ agent-plugin/
 │   ├── plugin.json
 │   └── marketplace.json
 ├── skills/
-│   ├── to-consult/SKILL.md
+│   ├── to-consult/
+│   │   ├── SKILL.md            # 会诊入口 + 形态判定 + 8 步执行流程（精简引导）
+│   │   ├── consult-common.md   # 跨形态共享规范（宿主无关 / 底座 / 物理架构 / 触发 / 落盘 / 外部接入 / 降级）
+│   │   ├── mode-panel.md       # 形态：并行独立盲区互补（拓扑 / 角色卡 / 收口契约 / 编排骨架）
+│   │   ├── mode-debate.md      # 形态：正反辩论 + 裁判裁决
+│   │   ├── mode-refine.md      # 形态：精炼（two-way 互评 / one-way 质检）
+│   │   └── mode-direct.md      # 旁路：单声直问（非协作形态）
 │   └── to-grill/SKILL.md
 ├── scripts/
 │   └── panel.js                # Claude Code Workflow 脚本（panel persona 批）
@@ -108,7 +113,6 @@ agent-plugin/
 │   ├── example.env.toml
 │   ├── README.md
 │   └── __tests__/
-├── CONSULT-GUIDE.md            # 机制规范
 ├── README.md                   # 本文件
 └── .gitignore
 ```

@@ -1,6 +1,6 @@
 // 多模型 panel —— 宿主底座 persona 批的确定性 fan-out（**Claude Code 宿主适配层**，Workflow 工具脚本）
 //
-// 宿主边界（见 CONSULT-GUIDE §3 §10）：
+// 宿主边界（见 to-consult/consult-common.md §3 + mode-panel.md §5/§7）：
 //   本脚本是 panel「宿主底座 persona 批」的 **Claude Code 适配层**——`Workflow`/`Agent` 是 Claude Code
 //   专属工具，其 model 只能是 Claude，故只有 Claude Code 宿主能用本脚本做确定性 fan-out。
 //   Codex / Cursor 宿主没有等价工具，由主会话**串行自扮演** persona（§9 正常路径），不调本脚本。
@@ -9,12 +9,12 @@
 //   ai_client/，不在此脚本。综合裁决、落盘、触发判定全留主会话（宿主 skill）。
 //   脚本不跑 Bash、不 commit、不 Edit。
 //
-// 形态边界（CONSULT-GUIDE §2 §3）：本脚本只服务 **panel 形态**的并行 persona 批。
+// 形态边界（to-consult/mode-panel.md + consult-common.md §3）：本脚本只服务 **panel 形态**的并行 persona 批。
 //   debate / refine 形态跨底座 + 有串行依赖（立论→反驳→裁决 / 生成→互评/质检→合并/修订），
 //   Workflow 既调不了外部底座、也不便表达跨批串行，故整条流程由主会话编排，不调本脚本。
 //
 // 同质化防护：同一底座派多 persona 易同质，故靠「强制对立 lens + 立场约束」拉开区分度，
-//   不靠身份标签（CONSULT-GUIDE §1）。每个 persona 的约束由主 Agent 在 args.roster[].lens 给定，
+//   不靠身份标签（to-consult/consult-common.md §1）。每个 persona 的约束由主 Agent 在 args.roster[].lens 给定，
 //   原样注入 prompt，persona 之间互不可见（不附和）。
 //
 // 输入 args（主 Agent 组装）：
@@ -25,16 +25,16 @@
 //     roster:  [{ role: "架构红队", lens: "只挑技术可行性…不评价价值" }, ...]
 //   }
 //
-// 返回：与 roster 等长的角色卡数组（§4 schema），供主 Agent 汇总 + 综合。
+// 返回：与 roster 等长的角色卡数组（mode-panel.md §3 schema），供主 Agent 汇总 + 综合。
 
 export const meta = {
   name: 'panel-host-persona',
   description: '多模型 panel 的宿主底座 persona 批（Claude Code 适配层）：固定 persona 就一议题各自独立出角色卡（不含外部模型/不落盘/不裁决）',
-  whenToUse: '仅 Claude Code 宿主下，由 /to-consult 在命中 CONSULT-GUIDE §6 触发时调用，取宿主 persona 批角色卡；外部声音批主会话另走 Bash 调 ai_client，非 Claude 宿主由主会话自扮演 persona',
+  whenToUse: '仅 Claude Code 宿主下，由 /to-consult 在命中 to-consult/consult-common.md §6 触发时调用，取宿主 persona 批角色卡；外部声音批主会话另走 Bash 调 ai_client，非 Claude 宿主由主会话自扮演 persona',
   phases: [{ title: 'Panel', detail: '每个 persona 一个子 agent 并发出角色卡' }],
 }
 
-// ── 角色卡 schema（CONSULT-GUIDE §4，强制结构化）─────────────────────────────
+// ── 角色卡 schema（to-consult/mode-panel.md §3，强制结构化）──────────────────
 const CARD_SCHEMA = {
   type: 'object',
   additionalProperties: false,
@@ -53,7 +53,7 @@ const CARD_SCHEMA = {
   },
 }
 
-// ── 单个 persona 的自包含 prompt（CONSULT-GUIDE §4 骨架）────────────────────
+// ── 单个 persona 的自包含 prompt（to-consult/mode-panel.md §4 骨架）────────
 function buildPrompt(topic, context, persona) {
   return `你是多模型 panel 的【${persona.role}】。就以下议题独立出一张角色卡。
 

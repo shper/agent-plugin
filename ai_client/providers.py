@@ -3,7 +3,7 @@
 上层（会诊等）只认 `Provider.ask`，不关心底下是 subprocess CLI 还是 HTTP API。
 所有 CLI transport 一律走只读/问答模式——会诊角色是纯讨论，绝不让它改文件或跑命令。
 
-留痕（CONSULT-GUIDE §7）：每个 Provider 另暴露 `request_repr(prompt) -> dict`，给出**已脱敏、
+留痕（to-consult/consult-common.md §7）：每个 Provider 另暴露 `request_repr(prompt) -> dict`，给出**已脱敏、
 可序列化**的请求描述（CLI 的命令行 / API 的请求行），供 consult_log 记录。脱敏铁律：API 永不
 吐 api_key、不吐 messages 正文；CLI 命令行里 prompt 用占位符（正文由 consult_log 另记一次）。
 """

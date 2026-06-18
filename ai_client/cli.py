@@ -13,7 +13,7 @@ provider id 来自 .env.toml 的 [providers.<id>]。
 --file 由本 CLI 读出文件内容嵌入 prompt 前部——所有 transport 通用，尤其 openai-compat（纯 API）
 自身无文件访问能力，必须靠这里读出嵌入。
 
-留痕（CONSULT-GUIDE §7）：每次调用都把「请求 + prompt + 生响应」强制 append 到
+留痕（to-consult/consult-common.md §7）：每次调用都把「请求 + prompt + 生响应」强制 append 到
 `<宿主项目根>/.consult-cache/to-consult/<task>/session.md`（consult_log，非阻塞）。`--task` 由主会话
 经 `consult_log.py start` 取得；漏传则兜底一个 `<时间戳>_adhoc` 目录，保证必留痕。
 """

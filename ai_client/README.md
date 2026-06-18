@@ -14,7 +14,7 @@
   | `cursor-cli` | gpt-5 / sonnet-4 / sonnet-4-thinking … | 复用 Cursor 登录态，零 key | `cursor-agent -p --mode ask`（只读问答） |
   | `openai-compat` | 任意 OpenAI 兼容厂商（OpenAI / DeepSeek / ollama / qwen …） | `.env.toml` 填 | httpx → `/v1/chat/completions` |
 - **CLI transport 一律只读**：会诊角色是纯讨论，绝不让外部 agent 改文件或跑命令（`--permission-mode plan` / `read-only` 沙箱 / `--mode ask`）。
-- **claude-cli 的用途**：非 Claude 宿主（Codex / Cursor）下让 Claude 当外部盲区声音——对称补全 codex / cursor，使会诊在任何宿主都能跨底座互补（见 CONSULT-GUIDE §8）。
+- **claude-cli 的用途**：非 Claude 宿主（Codex / Cursor）下让 Claude 当外部盲区声音——对称补全 codex / cursor，使会诊在任何宿主都能跨底座互补（见 to-consult/consult-common.md §8）。
 - **依赖隔离**：`cli.py` 头部 PEP 723 声明 `httpx`，`uv run` 自动建隔离环境。**不污染系统 python**。
 
 ## 文件
@@ -22,9 +22,9 @@
 | 文件 | 职责 |
 |---|---|
 | `cli.py` | 单声入口（PEP 723 声明 httpx）；`--provider <id> --task <t> "<prompt>"` → stdout 文本（panel 外部批 / direct 旁路），每次调用经 consult_log 留痕 |
-| `orchestrate.py` | 多形态编排入口（PEP 723）；`debate / refine`（refine 含 `--direction two-way\|one-way`）子命令确定性跑外部底座多步拓扑 → stdout 结构化 JSON；每步外部调用自动留痕（收口=宿主主裁留主会话，见 CONSULT-GUIDE §3 §10） |
+| `orchestrate.py` | 多形态编排入口（PEP 723）；`debate / refine`（refine 含 `--direction two-way\|one-way`）子命令确定性跑外部底座多步拓扑 → stdout 结构化 JSON；每步外部调用自动留痕（收口=宿主主裁留主会话，见 to-consult/consult-common.md §3 + mode-debate.md / mode-refine.md「编排骨架」） |
 | `providers.py` | `Provider` 基类 + `ClaudeCli` / `CodexCli` / `CursorCli` / `OpenAICompat` 四实现 + `build_provider` 工厂；另暴露 `request_repr`（脱敏请求描述，留痕用） |
-| `consult_log.py` | 会诊留痕单一写入点（纯标准库）；`start` / `verdict` 子命令 + `record_call` 库函数 → 写 `<宿主项目根>/.consult-cache/to-consult/<任务名>/session.md`（CONSULT-GUIDE §7.2） |
+| `consult_log.py` | 会诊留痕单一写入点（纯标准库）；`start` / `verdict` 子命令 + `record_call` 库函数 → 写 `<宿主项目根>/.consult-cache/to-consult/<任务名>/session.md`（to-consult/consult-common.md §7.2） |
 | `config.py` | 纯标准库 `tomllib` 读 `.env.toml`（缺失引导复制模板） |
 | `example.env.toml` | 配置模板（进 git，key 留空） |
 | `.env.toml` | 实际配置（**gitignore**，含 key） |
@@ -78,7 +78,7 @@ uv run "${CLAUDE_PLUGIN_ROOT}/ai_client/orchestrate.py" refine --ext0 codex --ex
 uv run "${CLAUDE_PLUGIN_ROOT}/ai_client/orchestrate.py" refine --ext0 codex --ext1 cursor --direction one-way --skip-gen --file draft.md "质检这份草稿"
 ```
 
-留痕（强制，CONSULT-GUIDE §7.2）：会诊主会话编排前先 `start` 取任务名，各调用带 `--task`，收口后 `verdict` 写结论；外部各声的请求+生响应由 cli/orchestrate 自动落，脱敏（API 不记 key、prompt 占位）、非阻塞（写盘失败不中断会诊）：
+留痕（强制，to-consult/consult-common.md §7.2）：会诊主会话编排前先 `start` 取任务名，各调用带 `--task`，收口后 `verdict` 写结论；外部各声的请求+生响应由 cli/orchestrate 自动落，脱敏（API 不记 key、prompt 占位）、非阻塞（写盘失败不中断会诊）：
 
 ```bash
 TASK=$(uv run "${CLAUDE_PLUGIN_ROOT}/ai_client/consult_log.py" start --slug demo --mode panel \
@@ -113,4 +113,4 @@ uv run "${CLAUDE_PLUGIN_ROOT}/ai_client/cli.py" --provider cursor "回 OK 两个
 - **panel 形态**：外部批走 `cli.py`（每 provider 一张视角卡），宿主批走 `panel.js` / 自扮演，主裁综合。
 - **debate / refine 形态**：外部底座的多步拓扑（立论→反驳 / 生成→互评 / 生成→质检）走 `orchestrate.py` **确定性编排**成结构化 JSON；收口（裁决/合并/修订 = 宿主主裁）留主会话。
 
-详见插件根目录 `CONSULT-GUIDE.md` §0 §2 §3 §8 §10。
+详见 `skills/to-consult/SKILL.md` §0 §3 §8 + 同目录 `mode-debate.md` / `mode-refine.md`「编排骨架」。
