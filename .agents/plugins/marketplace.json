@@ -1,7 +1,7 @@
 {
-  "name": "agent-plugin",
+  "name": "shper-agent-plugin",
   "interface": {
-    "displayName": "agent-plugin"
+    "displayName": "shper-agent-plugin"
   },
   "plugins": [
     {
