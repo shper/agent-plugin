@@ -12,7 +12,7 @@
   | `claude-cli` | Claude（opus/sonnet…） | 复用 Claude Code 登录态，零 key | `claude -p --permission-mode plan`（print 只读） |
   | `codex-cli` | GPT 系 | 复用 ChatGPT 登录态，零 key | `codex exec --sandbox read-only --ephemeral --ignore-user-config --ignore-rules` |
   | `cursor-cli` | gpt-5 / sonnet-4 / sonnet-4-thinking … | 复用 Cursor 登录态，零 key | `cursor-agent -p --mode ask`（只读问答） |
-  | `openai-compat` | 任意 OpenAI 兼容厂商（OpenAI / DeepSeek / ollama / qwen …） | `.env.toml` 填 | httpx → `/v1/chat/completions` |
+  | `openai-compat` | 任意 OpenAI 兼容厂商（OpenAI / DeepSeek / ollama / qwen …） | `env.toml` 填 | httpx → `/v1/chat/completions` |
 - **CLI transport 一律只读**：会诊角色是纯讨论，绝不让外部 agent 改文件或跑命令（`--permission-mode plan` / `read-only` 沙箱 / `--mode ask`）。
 - **claude-cli 的用途**：非 Claude 宿主（Codex / Cursor）下让 Claude 当外部盲区声音——对称补全 codex / cursor，使会诊在任何宿主都能跨底座互补（见 to-consult/consult-common.md §8）。
 - **依赖隔离**：`cli.py` 头部 PEP 723 声明 `httpx`，`uv run` 自动建隔离环境。**不污染系统 python**。
@@ -25,29 +25,24 @@
 | `orchestrate.py` | 多形态编排入口（PEP 723）；`debate / refine`（refine 含 `--direction two-way\|one-way`）子命令确定性跑外部底座多步拓扑 → stdout 结构化 JSON；每步外部调用自动留痕（收口=宿主主裁留主会话，见 to-consult/consult-common.md §3 + mode-debate.md / mode-refine.md「编排骨架」） |
 | `providers.py` | `Provider` 基类 + `ClaudeCli` / `CodexCli` / `CursorCli` / `OpenAICompat` 四实现 + `build_provider` 工厂；另暴露 `request_repr`（脱敏请求描述，留痕用） |
 | `consult_log.py` | 会诊留痕单一写入点（纯标准库）；`start` / `verdict` 子命令 + `record_call` 库函数 → 写 `<宿主项目根>/.consult-cache/to-consult/<任务名>/session.md`（to-consult/consult-common.md §7.2） |
-| `config.py` | 纯标准库 `tomllib` 读 `.env.toml`（缺失引导复制模板） |
+| `config.py` | 纯标准库 `tomllib` 读 `~/.agent-plugin/env.toml`（缺失自动从模板初始化并提醒填 key） |
 | `example.env.toml` | 配置模板（进 git，key 留空） |
-| `.env.toml` | 实际配置（**gitignore**，含 key） |
+| `~/.agent-plugin/env.toml` | 实际配置（用户主目录，含 key，**不在插件目录内**） |
 
-## 配置（`.env.toml` 位置）
+## 配置（`~/.agent-plugin/env.toml`）
 
-插件目录是共享只读资产，**密钥不应塞进去**。`config.py` 按以下优先级解析配置位置：
+插件目录是共享只读资产，**密钥不塞进去**。配置统一落在用户主目录的固定点 `~/.agent-plugin/env.toml`，与插件安装目录解耦——跨版本升级不丢配置。
 
-1. 环境变量 `CONSULT_ENV_TOML`（显式指定路径）
-2. 插件数据区 `.env.toml`（`$CLAUDE_PLUGIN_DATA` / `$PLUGIN_DATA`，**仅插件 hook 环境可靠**——skill 的普通 Bash 里通常为空）
-3. 脚本同目录 `.env.toml`（兜底）
+**首次运行无需手动复制**：`config.py` 发现配置不存在时，会自动把 `example.env.toml` 复制过去，并在 stderr 提醒你设置 `base_url` 与 `api_key`。
 
-数据区变量在 skill 的普通 Bash 里通常取不到，**手动配 key 走 `CONSULT_ENV_TOML` 最稳**：
+- CLI transport（claude / codex / cursor）零 key，复用各自登录态，**初始化后即可用**；
+- API transport（openai-compat：OpenAI / DeepSeek / ollama …）需编辑填 `base_url` + `api_key`：
 
 ```bash
-# 推荐：显式指定一个自己的路径，跨宿主/跨版本都认
-mkdir -p ~/.config/agent-plugin
-cp <插件根>/ai_client/example.env.toml ~/.config/agent-plugin/.env.toml
-# 编辑：CLI transport（claude/codex/cursor）零 key 即用；API transport 填 base_url + api_key
-export CONSULT_ENV_TOML=~/.config/agent-plugin/.env.toml   # 写进 shell profile 持久生效
+$EDITOR ~/.agent-plugin/env.toml
 ```
 
-不设 `CONSULT_ENV_TOML` 时回退到已安装的 `ai_client/.env.toml`（插件根下，跨版本会被覆盖，仅本地开发凑合）。
+如需自定义位置（CI / 多份配置），设环境变量 `CONSULT_ENV_TOML` 指向目标文件即可覆盖默认路径（同样支持首次自动初始化）。
 
 ## 留痕落点
 

@@ -21,7 +21,7 @@ updated: 2026-06-18
 | "**只用** X / 单独让 X / 让 X 分析这个问题/文档" | **direct 旁路**（本文件） |
 | "**用** X 一起讨论 / 压测 / 让 X **也**看看" | panel / 协作形态，对应席位 provider 覆盖为 X |
 
-显式入参 `mode=direct` 同走 direct（consult-common §6）。`X` 必须在 `ai_client/.env.toml [providers.*]`，未配则告知可选项、不臆造。
+显式入参 `mode=direct` 同走 direct（consult-common §6）。`X` 必须在 `~/.agent-plugin/env.toml [providers.*]`，未配则告知可选项、不臆造。
 
 ## 2. 拓扑
 

@@ -73,7 +73,7 @@ related:                                            # 路径相对插件根（ag
 
 ### Step 4: 探测宿主 + 取外部声音池（consult-common §8）
 
-探测当前宿主（claude / cursor / codex），读 `.env.toml` 的 `[to-consult.external_voices][host]` 取池（Step 1 有覆盖则用覆盖值）。池里 `[0]`/`[1]` 充当 debate 正/反方、refine ext0/ext1（two-way=A/B、one-way=生成/质检）；panel 形态则全部当外部视角。
+探测当前宿主（claude / cursor / codex），读 `~/.agent-plugin/env.toml` 的 `[to-consult.external_voices][host]` 取池（Step 1 有覆盖则用覆盖值）。池里 `[0]`/`[1]` 充当 debate 正/反方、refine ext0/ext1（two-way=A/B、one-way=生成/质检）；panel 形态则全部当外部视角。
 
 ### Step 5: 建留痕会话（consult-common §7.2 强制）
 

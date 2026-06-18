@@ -1,12 +1,15 @@
-"""读取 ai_client 的 .env.toml —— 缺失时引导复制 example.env.toml。
+"""读取 ai_client 的 env.toml —— 缺失时自动从 example.env.toml 初始化并提醒填 base_url/key。
 
 纯标准库（tomllib，Python 3.11+），不依赖 httpx；httpx 只在 providers 的 API transport 用到。
-插件化后：插件目录是共享只读资产，密钥不塞进去——配置位置见 _config_path()。
+插件化后：插件目录是共享只读资产，密钥不塞进去——配置统一落在用户主目录 ~/.agent-plugin/env.toml，
+与插件安装目录解耦（跨版本升级不丢配置）。
 """
 
 from __future__ import annotations
 
 import os
+import shutil
+import sys
 import tomllib
 from pathlib import Path
 from typing import Any
@@ -14,32 +17,34 @@ from typing import Any
 _DIR = Path(__file__).resolve().parent
 _EXAMPLE = _DIR / "example.env.toml"
 
+# 默认配置位置：与插件安装目录解耦，放用户主目录下的固定点。
+_DEFAULT_CONFIG = Path.home() / ".agent-plugin" / "env.toml"
+
 
 def _config_path() -> Path:
-    """解析 .env.toml 位置。优先级：
-      显式 CONSULT_ENV_TOML > 插件数据区/.env.toml > 脚本同目录兜底。
-    数据区变量 CLAUDE_PLUGIN_DATA / PLUGIN_DATA 仅插件 hook 环境可靠（skill 的普通 Bash 里常为空），
-    故 skill 内配 key 建议走 CONSULT_ENV_TOML；缺失时回退脚本同目录 .env.toml。
-    """
+    """解析 env.toml 位置：显式 CONSULT_ENV_TOML 覆盖 > 默认 ~/.agent-plugin/env.toml。"""
     explicit = os.environ.get("CONSULT_ENV_TOML")
-    if explicit:
-        return Path(explicit)
-    data_dir = os.environ.get("CLAUDE_PLUGIN_DATA") or os.environ.get("PLUGIN_DATA")
-    if data_dir:
-        return Path(data_dir) / ".env.toml"
-    return _DIR / ".env.toml"
+    return Path(explicit) if explicit else _DEFAULT_CONFIG
+
+
+def _bootstrap_config(config: Path) -> None:
+    """首次运行：把模板复制到目标位置，并提醒用户设置 base_url 与 key。"""
+    config.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy(_EXAMPLE, config)
+    print(
+        f"[ai_client] 首次运行：已从模板初始化配置 → {config}\n"
+        f"  · CLI provider（claude / codex / cursor）零 key，开箱即用；\n"
+        f"  · 如需 openai-compat 厂商（OpenAI / DeepSeek / ollama …），请编辑该文件填 base_url 与 api_key：\n"
+        f"      $EDITOR {config}",
+        file=sys.stderr,
+    )
 
 
 def load_config() -> dict[str, Any]:
-    """加载 .env.toml；不存在则抛错并提示复制模板。"""
+    """加载 env.toml；不存在则从模板复制并提醒，再继续加载。"""
     config = _config_path()
     if not config.exists():
-        raise FileNotFoundError(
-            f"未找到 {config}。请复制模板并填 key（CLI transport 零 key，仅 openai-compat 厂商需填）：\n"
-            f"  cp {_EXAMPLE} {config}\n"
-            f"  或设环境变量 CONSULT_ENV_TOML 指向你的配置文件。\n"
-            f"  （数据区变量：Claude Code = CLAUDE_PLUGIN_DATA，Codex = PLUGIN_DATA。）"
-        )
+        _bootstrap_config(config)
     with config.open("rb") as f:
         return tomllib.load(f)
 

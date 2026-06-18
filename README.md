@@ -113,19 +113,17 @@ uv run ai_client/cli.py --help
 ### 外部模型 key（仅 OpenAI 兼容厂商需要）
 
 CLI transport（`claude` / `codex` / `cursor`）**零 key 即用**——复用对应工具的本地登录态。
-仅当你想加 OpenAI 兼容厂商（DeepSeek / qwen / ollama / GPT-4o…）作为外部声音时，才需要配 `.env.toml`：
+仅当你想加 OpenAI 兼容厂商（DeepSeek / qwen / ollama / GPT-4o…）作为外部声音时，才需要填 key。
+
+配置统一落在 `~/.agent-plugin/env.toml`（用户主目录，与插件安装目录解耦，跨版本升级不丢）。**首次运行无需手动复制**：`config.py` 发现配置不存在时，自动从 `example.env.toml` 初始化并在 stderr 提醒你填 `base_url` 与 `api_key`。只需编辑：
 
 ```bash
-# 推荐：显式指定一个你自己的路径，跨宿主/跨版本都稳（数据区变量在普通 shell 里为空，别依赖）
-mkdir -p ~/.config/agent-plugin
-cp <插件根>/ai_client/example.env.toml ~/.config/agent-plugin/.env.toml
-$EDITOR ~/.config/agent-plugin/.env.toml          # 填 base_url + api_key
-export CONSULT_ENV_TOML=~/.config/agent-plugin/.env.toml   # 写进 shell profile 持久生效
+$EDITOR ~/.agent-plugin/env.toml          # CLI transport 零 key 即用；API transport 填 base_url + api_key
 ```
 
-`config.py` 解析配置位置的优先级：`CONSULT_ENV_TOML` > 数据区 `.env.toml`（`$CLAUDE_PLUGIN_DATA` / `$PLUGIN_DATA`，**仅 hook 环境可靠**）> 脚本同目录 `.env.toml`（兜底）。因数据区变量在 skill 的普通 Bash 里通常为空，**手动配 key 走 `CONSULT_ENV_TOML` 最稳**；不设时回退到已安装的 `ai_client/.env.toml`（即插件根下，仍跨版本被覆盖，仅本地开发凑合用）。插件目录是共享只读资产，正式 key **别塞进去**。
+如需自定义位置（CI / 多份配置），设 `CONSULT_ENV_TOML` 指向目标文件即可覆盖默认路径。插件目录是共享只读资产，正式 key **别塞进去**。
 
-`.env.toml` 里的 `[to-consult.external_voices]` 决定每个宿主对应取哪些外部声音；详见模板注释、`ai_client/README.md` 与 `skills/to-consult/consult-common.md` §8。
+`env.toml` 里的 `[to-consult.external_voices]` 决定每个宿主对应取哪些外部声音；详见模板注释、`ai_client/README.md` 与 `skills/to-consult/consult-common.md` §8。
 
 ## 留痕落点
 
