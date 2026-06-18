@@ -102,6 +102,7 @@ uv run "$ROOT/ai_client/orchestrate.py" refine \
   --task "$TASK" \
   --ext0 <ext0> --ext1 <ext1> \
   --fallback <宿主底座 provider> \
+  --host <claude|codex|cursor> \
   "<任务>" \
   --direction two-way|one-way \
   [--context "<自包含背景>"] [--file <doc>] [--skip-gen]

@@ -71,9 +71,17 @@ related:                                            # 路径相对插件根（ag
 
 把议题相关背景 + 待决问题 + 相关架构决策（如有）摘录成一段**自包含 context**（角色据此判断，不自行漫游全仓）。
 
-### Step 4: 探测宿主 + 取外部声音池（consult-common §8）
+### Step 4: 探测宿主 + 取外部声音池 + 独立性检测（consult-common §8）
 
 探测当前宿主（claude / cursor / codex），读 `~/.agent-plugin/env.toml` 的 `[to-consult.external_voices][host]` 取池（Step 1 有覆盖则用覆盖值）。池里 `[0]`/`[1]` 充当 debate 正/反方、refine ext0/ext1（two-way=A/B、one-way=生成/质检）；panel 形态则全部当外部视角。
+
+**跨底座独立性检测（C4，强制·非阻塞）**：取池后调一次 `independence.py`，检出"名义跨厂商、实质同源"（同模型族 / 同推理网关 / 与主裁同族）——杜绝多模型退化成**伪交叉验证背书**：
+
+```bash
+uv run "$ROOT/ai_client/independence.py" --host <claude|codex|cursor> --pool <池逗号分隔>
+```
+
+有重合（`INDEPENDENCE: warn(N)`）则**在小结里如实告诉用户哪些席位同源、独立性打折**；重合严重（如对抗双方同族）按 consult-common §9 流产。debate/refine 走 `orchestrate.py` 时已自动把该检测嵌进 envelope 的 `independence` 字段（传 `--host` 即可），panel 形态由本步显式调用。
 
 ### Step 5: 建留痕会话（consult-common §7.2 强制）
 

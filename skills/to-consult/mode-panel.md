@@ -107,8 +107,9 @@ args = {
 
 ### 7.2 完整步骤（接 SKILL.md 「执行步骤」 Step 6 进入本节）
 
-承接：留痕会话 `$TASK` 已建立（SKILL.md Step 5 / consult-common §7.2），外部声音池 `external_voices[host]` 已取定。
+承接：留痕会话 `$TASK` 已建立（SKILL.md Step 5 / consult-common §7.2），外部声音池 `external_voices[host]` 已取定、并已过 Step 4 的独立性检测（panel 形态外部席多，尤其要看 `independence.py` 报的同族/同网关告警）。
 
+0. **跨底座独立性检测**（C4，承 SKILL.md Step 4）：`uv run "$ROOT/ai_client/independence.py" --host <host> --pool <池>`；有重合则在综合收口里如实标注哪些外部视角同源、其卡的"独立补盲"价值打折。
 1. **宿主 persona 批**：Claude Code → Workflow(panel.js)；Codex / Cursor → 主会话自扮演 3 角色卡。
 2. **外部视角批**（并发出卡）：池里每个 provider 单独调一次 `cli.py`：
    ```bash

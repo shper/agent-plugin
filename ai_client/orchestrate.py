@@ -40,6 +40,7 @@ from pathlib import Path
 from typing import Awaitable, Callable
 
 import consult_log  # 纯标准库，顶层 import 不破坏「无 httpx 单测」（单测 mock caller 不走 _build_caller）
+import independence  # 同上纯标准库：跨底座独立性检测（C4），结果嵌入 envelope 供主裁如实暴露
 
 # caller: 把一个 prompt 发给某 provider，返回纯文本；失败抛异常（由 _step 捕获）。
 Caller = Callable[[str, str], Awaitable[str]]
@@ -366,6 +367,8 @@ def _add_common(p: argparse.ArgumentParser) -> None:
     p.add_argument("--task", default="", help="留痕会话目录名（consult_log.py start 取得；漏传则兜底）")
     p.add_argument("--fallback", default="", metavar="PROVIDER",
                    help="宿主底座 provider id：外部步骤失败时确定性补位（§9 降级，步骤打 degraded 标注）")
+    p.add_argument("--host", default="", metavar="HOST",
+                   help="宿主 claude|codex|cursor：用于跨底座独立性检测（C4），判外部席是否与主裁同族")
 
 
 def main() -> int:
@@ -414,6 +417,17 @@ def main() -> int:
                                      context=args.context, ext0=args.ext0, ext1=args.ext1,
                                      material=material, skip_gen=args.skip_gen,
                                      fallback=args.fallback))
+
+    # 跨底座独立性检测（C4，非阻塞）：把外部两席 + 主裁的同源重合嵌入 envelope，供主裁如实暴露。
+    try:
+        from config import get_providers, load_config  # noqa: PLC0415
+        _provs = get_providers(load_config())
+        _seat_ids = [args.pro, args.con] if args.mode == "debate" else [args.ext0, args.ext1]
+        _warns = independence.analyze(args.host, {p: _provs[p] for p in _seat_ids if p in _provs})
+        if _warns:
+            env["independence"] = _warns
+    except Exception as e:  # noqa: BLE001 —— 检测是增益，失败不拦输出
+        print(f"[independence] 检测跳过（不阻断）：{e}", file=sys.stderr)
 
     print(json.dumps(env, ensure_ascii=False, indent=2))
     return 0 if env["ok"] else 1
