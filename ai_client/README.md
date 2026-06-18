@@ -34,17 +34,20 @@
 插件目录是共享只读资产，**密钥不应塞进去**。`config.py` 按以下优先级解析配置位置：
 
 1. 环境变量 `CONSULT_ENV_TOML`（显式指定路径）
-2. `$CLAUDE_PLUGIN_DATA/.env.toml`（Claude Code 注入的插件持久数据区，跨版本更新保留）
-3. 脚本同目录 `.env.toml`（兜底，仅本地开发用）
+2. 插件数据区 `.env.toml`（`$CLAUDE_PLUGIN_DATA` / `$PLUGIN_DATA`，**仅插件 hook 环境可靠**——skill 的普通 Bash 里通常为空）
+3. 脚本同目录 `.env.toml`（兜底）
+
+数据区变量在 skill 的普通 Bash 里通常取不到，**手动配 key 走 `CONSULT_ENV_TOML` 最稳**：
 
 ```bash
-# 推荐方式：放到 Claude 插件数据区
-cp "${CLAUDE_PLUGIN_ROOT}/ai_client/example.env.toml" "${CLAUDE_PLUGIN_DATA}/.env.toml"
+# 推荐：显式指定一个自己的路径，跨宿主/跨版本都认
+mkdir -p ~/.config/agent-plugin
+cp <插件根>/ai_client/example.env.toml ~/.config/agent-plugin/.env.toml
 # 编辑：CLI transport（claude/codex/cursor）零 key 即用；API transport 填 base_url + api_key
-
-# 或显式指定
-export CONSULT_ENV_TOML=/path/to/your/.env.toml
+export CONSULT_ENV_TOML=~/.config/agent-plugin/.env.toml   # 写进 shell profile 持久生效
 ```
+
+不设 `CONSULT_ENV_TOML` 时回退到已安装的 `ai_client/.env.toml`（插件根下，跨版本会被覆盖，仅本地开发凑合）。
 
 ## 留痕落点
 
@@ -54,44 +57,48 @@ export CONSULT_ENV_TOML=/path/to/your/.env.toml
 2. `CLAUDE_PROJECT_DIR/.consult-cache/to-consult/`（宿主项目根，Claude Code 注入）
 3. `<cwd>/.consult-cache/to-consult/`（兜底）
 
-宿主项目把 `.consult-cache/` 加进自己的 `.gitignore` 即可。
+Codex 不注入项目根变量，走第 3 条 cwd 兜底——故主会话调脚本时**不要** `cd` 进插件根，保持 cwd = 宿主项目。宿主项目把 `.consult-cache/` 加进自己的 `.gitignore` 即可。
 
 ## 用法
 
+> 下面的 `$ROOT` = 插件根。`CLAUDE_PLUGIN_ROOT` / `PLUGIN_ROOT` 这两个变量**仅插件 hook 环境可靠存在**，skill 触发的 Bash 里通常为空——skill 内由主会话据"本 skill 目录上两级"代入（详见 to-consult/consult-common §3）；**手动跑**时 `cd` 进插件根目录跑相对路径，或先 `export CLAUDE_PLUGIN_ROOT=<插件根>`。
+
 ```bash
 # 由会诊主会话走 Bash 调用；也可手动验证
-uv run "${CLAUDE_PLUGIN_ROOT}/ai_client/cli.py" --provider claude "用一句话说明 CQRS 适合什么场景"
-uv run "${CLAUDE_PLUGIN_ROOT}/ai_client/cli.py" --provider cursor "同上"
-uv run "${CLAUDE_PLUGIN_ROOT}/ai_client/cli.py" --provider codex  "同上"
-uv run "${CLAUDE_PLUGIN_ROOT}/ai_client/cli.py" --provider deepseek --timeout 60 "同上"
+ROOT="${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT}"
+uv run "$ROOT/ai_client/cli.py" --provider claude "用一句话说明 CQRS 适合什么场景"
+uv run "$ROOT/ai_client/cli.py" --provider cursor "同上"
+uv run "$ROOT/ai_client/cli.py" --provider codex  "同上"
+uv run "$ROOT/ai_client/cli.py" --provider deepseek --timeout 60 "同上"
 
 # --file（可重复）：由 cli.py 读出文件内容嵌入 prompt 前部，所有 transport 通用。
 # openai-compat（纯 API，如 qwen）自身读不了文件，分析文档必须走这里。
-uv run "${CLAUDE_PLUGIN_ROOT}/ai_client/cli.py" --provider qwen --file path/to/doc.md "分析这份文档的风险"
+uv run "$ROOT/ai_client/cli.py" --provider qwen --file path/to/doc.md "分析这份文档的风险"
 ```
 
 多形态编排（debate / refine；输出结构化 JSON，收口留主会话）：
 
 ```bash
-uv run "${CLAUDE_PLUGIN_ROOT}/ai_client/orchestrate.py" debate --pro  codex --con  cursor "用 SSE 还是 WebSocket 做实时推送"
-uv run "${CLAUDE_PLUGIN_ROOT}/ai_client/orchestrate.py" refine --ext0 codex --ext1 cursor --direction two-way "给历史日报列表设计分页方案"
-uv run "${CLAUDE_PLUGIN_ROOT}/ai_client/orchestrate.py" refine --ext0 codex --ext1 cursor --direction one-way --skip-gen --file draft.md "质检这份草稿"
+uv run "$ROOT/ai_client/orchestrate.py" debate --pro  codex --con  cursor "用 SSE 还是 WebSocket 做实时推送"
+uv run "$ROOT/ai_client/orchestrate.py" refine --ext0 codex --ext1 cursor --direction two-way "给历史日报列表设计分页方案"
+uv run "$ROOT/ai_client/orchestrate.py" refine --ext0 codex --ext1 cursor --direction one-way --skip-gen --file draft.md "质检这份草稿"
 ```
 
 留痕（强制，to-consult/consult-common.md §7.2）：会诊主会话编排前先 `start` 取任务名，各调用带 `--task`，收口后 `verdict` 写结论；外部各声的请求+生响应由 cli/orchestrate 自动落，脱敏（API 不记 key、prompt 占位）、非阻塞（写盘失败不中断会诊）：
 
 ```bash
-TASK=$(uv run "${CLAUDE_PLUGIN_ROOT}/ai_client/consult_log.py" start --slug demo --mode panel \
+ROOT="${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT}"
+TASK=$(uv run "$ROOT/ai_client/consult_log.py" start --slug demo --mode panel \
   --trigger "压测这个方案" --host claude --models "codex/cursor")
-uv run "${CLAUDE_PLUGIN_ROOT}/ai_client/cli.py" --provider cursor --task "$TASK" --mode panel --role 外部视角 "回 OK 两个字"
-printf '综合结论…' | uv run "${CLAUDE_PLUGIN_ROOT}/ai_client/consult_log.py" verdict --task "$TASK" --mode panel
+uv run "$ROOT/ai_client/cli.py" --provider cursor --task "$TASK" --mode panel --role 外部视角 "回 OK 两个字"
+printf '综合结论…' | uv run "$ROOT/ai_client/consult_log.py" verdict --task "$TASK" --mode panel
 # → <宿主项目根>/.consult-cache/to-consult/$TASK/session.md
 ```
 
 测试（mock caller，不碰真实 provider / httpx）：
 
 ```bash
-cd "${CLAUDE_PLUGIN_ROOT}/ai_client" && python3 -m pytest __tests__ -q
+cd "${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT}/ai_client" && python3 -m pytest __tests__ -q
 ```
 
 退出码：`0` 成功（文本进 stdout）/ `1` 调用失败 / `2` 配置或参数错误（含文件缺失，信息进 stderr）。
@@ -99,11 +106,12 @@ cd "${CLAUDE_PLUGIN_ROOT}/ai_client" && python3 -m pytest __tests__ -q
 ## 验证
 
 ```bash
+ROOT="${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT}"
 # 1. uv 读 PEP723 + 装 httpx + import 链
-uv run "${CLAUDE_PLUGIN_ROOT}/ai_client/cli.py" --help
+uv run "$ROOT/ai_client/cli.py" --help
 
 # 2. 零 key CLI transport 端到端（会真实调模型、耗登录态额度）
-uv run "${CLAUDE_PLUGIN_ROOT}/ai_client/cli.py" --provider cursor "回 OK 两个字"
+uv run "$ROOT/ai_client/cli.py" --provider cursor "回 OK 两个字"
 ```
 
 ## 在会诊中的位置

@@ -36,7 +36,7 @@ related:                                            # 路径相对插件根（ag
 > | `./mode-direct.md` | direct 旁路（非协作形态） | Step 1 命中 direct，早退 |
 >
 > **宿主无关**：不假设宿主是哪个 CLI。主裁 = 当前宿主主模型；角色批派发按宿主能力探测（consult-common §3）。
-> 边界：**产出不落文档、不改代码**；但过程素材**强制留痕**到宿主项目的 `.consult-cache/to-consult/<任务名>/`（脚本据 `CLAUDE_PROJECT_DIR` 定位，宿主项目自行 gitignore，consult-common §7）。小结给用户，结论交下游工具取用。
+> 边界：**产出不落文档、不改代码**；但过程素材**强制留痕**到宿主项目的 `.consult-cache/to-consult/<任务名>/`（脚本据宿主项目根定位：`CLAUDE_PROJECT_DIR` / cwd 兜底，宿主项目自行 gitignore，consult-common §7）。小结给用户，结论交下游工具取用。
 
 ---
 
@@ -80,7 +80,8 @@ related:                                            # 路径相对插件根（ag
 编排前调一次 `consult_log.py start` 取任务名 `$TASK`，本次会诊后续所有脚本调用都带 `--task "$TASK"`（脚本据此把请求+生响应落到同一目录）：
 
 ```bash
-TASK=$(uv run "${CLAUDE_PLUGIN_ROOT}/ai_client/consult_log.py" start \
+ROOT="${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT}"   # 变量在 hook 外常为空→主会话据本 skill 目录上两级代入插件根（consult-common §3）
+TASK=$(uv run "$ROOT/ai_client/consult_log.py" start \
   --slug <议题slug> --mode <panel|debate|refine|direct> \
   --trigger "<启动提示词/触发原话>" \
   --host <claude|codex|cursor> \
@@ -111,7 +112,7 @@ TASK=$(uv run "${CLAUDE_PLUGIN_ROOT}/ai_client/consult_log.py" start \
 
 - **把主裁收口结论写进留痕**（强制）：主裁收口后，经脚本把结论追写进本会话目录（正文走 stdin）：
   ```bash
-  printf '%s' "<主裁收口结论全文>" | uv run "${CLAUDE_PLUGIN_ROOT}/ai_client/consult_log.py" verdict --task "$TASK" --mode <同 start 的 mode>
+  printf '%s' "<主裁收口结论全文>" | uv run "${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT}/ai_client/consult_log.py" verdict --task "$TASK" --mode <同 start 的 mode>
   ```
   至此本次会诊全程（启动模式 / 模型 / 启动提示词 / 命令行或 API 请求 / 外部生响应 / 主裁结论）留痕在宿主项目 `.consult-cache/to-consult/$TASK/session.md`。注：panel 宿主 persona 卡因 `panel.js` 是 Workflow 不能写文件，**不在留痕内**（consult-common §7 已知限制）。
 - 收口结果小结给用户，提示下游：要把结论审问落文件 / 综合成 PRD，交宿主项目对应的下游 skill（如已安装）。

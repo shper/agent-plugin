@@ -1,0 +1,21 @@
+{
+  "name": "agent-plugin",
+  "interface": {
+    "displayName": "agent-plugin"
+  },
+  "plugins": [
+    {
+      "name": "agent-plugin",
+      "source": {
+        "source": "local",
+        "path": "./"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Development & Workflow",
+      "description": "宿主无关的多模型会诊引擎（panel / debate / refine + direct），跨厂商外部声音盲区互补。"
+    }
+  ]
+}

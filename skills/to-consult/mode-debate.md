@@ -71,7 +71,8 @@ updated: 2026-06-18
 承接：留痕会话 `$TASK` 已建立（SKILL.md Step 5 / consult-common §7.2），外部声音池 `external_voices[host]` 已取定。
 
 ```bash
-uv run "${CLAUDE_PLUGIN_ROOT}/ai_client/orchestrate.py" debate \
+ROOT="${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT}"   # 变量在 hook 外常为空→据本 skill 目录上两级代入插件根（consult-common §3）
+uv run "$ROOT/ai_client/orchestrate.py" debate \
   --task "$TASK" \
   --pro  <ext0> --con <ext1> \
   "<议题>" \

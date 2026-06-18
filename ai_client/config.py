@@ -17,12 +17,14 @@ _EXAMPLE = _DIR / "example.env.toml"
 
 def _config_path() -> Path:
     """解析 .env.toml 位置。优先级：
-      显式 CONSULT_ENV_TOML > $CLAUDE_PLUGIN_DATA/.env.toml（插件持久数据区，跨版本保留）> 脚本同目录兜底。
+      显式 CONSULT_ENV_TOML > 插件数据区/.env.toml > 脚本同目录兜底。
+    数据区变量 CLAUDE_PLUGIN_DATA / PLUGIN_DATA 仅插件 hook 环境可靠（skill 的普通 Bash 里常为空），
+    故 skill 内配 key 建议走 CONSULT_ENV_TOML；缺失时回退脚本同目录 .env.toml。
     """
     explicit = os.environ.get("CONSULT_ENV_TOML")
     if explicit:
         return Path(explicit)
-    data_dir = os.environ.get("CLAUDE_PLUGIN_DATA")
+    data_dir = os.environ.get("CLAUDE_PLUGIN_DATA") or os.environ.get("PLUGIN_DATA")
     if data_dir:
         return Path(data_dir) / ".env.toml"
     return _DIR / ".env.toml"
@@ -35,7 +37,8 @@ def load_config() -> dict[str, Any]:
         raise FileNotFoundError(
             f"未找到 {config}。请复制模板并填 key（CLI transport 零 key，仅 openai-compat 厂商需填）：\n"
             f"  cp {_EXAMPLE} {config}\n"
-            f"  或设环境变量 CONSULT_ENV_TOML 指向你的配置文件。"
+            f"  或设环境变量 CONSULT_ENV_TOML 指向你的配置文件。\n"
+            f"  （数据区变量：Claude Code = CLAUDE_PLUGIN_DATA，Codex = PLUGIN_DATA。）"
         )
     with config.open("rb") as f:
         return tomllib.load(f)

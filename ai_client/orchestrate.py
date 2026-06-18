@@ -14,9 +14,9 @@
 refine（精炼）一形态两方向，互评方向作参数（原 reflection + review-chain 收敛）：
   two-way = 双声独立生成 + 交叉互评 + 合并；one-way = 生成 + 单向质检 + 修订（--skip-gen 仅质检）。
 
-用法（主会话走 Bash；分析文档加 --file，可重复）：
-  uv run "${CLAUDE_PLUGIN_ROOT}/ai_client/orchestrate.py" debate --pro  codex --con  cursor "<议题>" [--context ...] [--file ...]
-  uv run "${CLAUDE_PLUGIN_ROOT}/ai_client/orchestrate.py" refine --ext0 codex --ext1 cursor "<任务>" [--direction two-way|one-way] [--context ...] [--file ...] [--skip-gen]
+用法（主会话走 Bash；ROOT = 插件根，CLAUDE_PLUGIN_ROOT/PLUGIN_ROOT 仅 hook 环境可靠、skill 内据 skill 目录上两级代入；分析文档加 --file，可重复）：
+  uv run "$ROOT/ai_client/orchestrate.py" debate --pro  codex --con  cursor "<议题>" [--context ...] [--file ...]
+  uv run "$ROOT/ai_client/orchestrate.py" refine --ext0 codex --ext1 cursor "<任务>" [--direction two-way|one-way] [--context ...] [--file ...] [--skip-gen]
 
 stdout = 结构化 JSON；主会话解析后由当前宿主主模型按 to-consult/mode-debate.md「收口契约」/ mode-refine.md「收口契约」收口。
 exit: 0 全部步骤成功 / 1 有步骤失败或跳过（JSON 仍输出，error 字段标注，主会话据此降级）/ 2 配置或参数错误。

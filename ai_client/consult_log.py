@@ -30,6 +30,7 @@ from pathlib import Path
 
 # 留痕根目录（插件化后必须落到「宿主项目」而非插件安装目录）。优先级：
 #   显式 CONSULT_CACHE_DIR > Claude Code 注入的 CLAUDE_PROJECT_DIR（宿主项目根）> 当前工作目录。
+# Codex 不注入项目根变量，靠 cwd 兜底——故主会话调脚本时**不要** cd 进插件根，保持 cwd = 宿主项目。
 # 不假设宿主有 `.harness/`，统一落 `<root>/.consult-cache/to-consult/`（宿主项目自行 gitignore）。
 _root = (
     os.environ.get("CONSULT_CACHE_DIR")

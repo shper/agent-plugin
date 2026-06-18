@@ -4,9 +4,9 @@
 # ///
 """ai_client CLI 入口 —— 调外部模型，stdout 返回纯文本。
 
-由会诊的主 Agent 走 Bash 调用：
-    uv run "${CLAUDE_PLUGIN_ROOT}/ai_client/cli.py" --provider cursor --task <t> --mode panel --role 外部视角 "<角色 prompt>"
-    uv run "${CLAUDE_PLUGIN_ROOT}/ai_client/cli.py" --provider qwen --task <t> --file path/to/doc.md "分析这份文档"
+由会诊的主 Agent 走 Bash 调用（ROOT = 插件根；CLAUDE_PLUGIN_ROOT/PLUGIN_ROOT 仅 hook 环境可靠，skill 内由主会话据 skill 目录上两级代入，手动跑则自行 export 或在插件根下跑）：
+    uv run "$ROOT/ai_client/cli.py" --provider cursor --task <t> --mode panel --role 外部视角 "<角色 prompt>"
+    uv run "$ROOT/ai_client/cli.py" --provider qwen --task <t> --file path/to/doc.md "分析这份文档"
 
 uv 读本文件头部 PEP 723 内联依赖，自动建隔离环境装 httpx；不污染系统 python。
 provider id 来自 .env.toml 的 [providers.<id>]。

@@ -45,15 +45,17 @@ updated: 2026-06-18
 ## 5. 编排骨架
 
 ```bash
+ROOT="${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT}"   # 变量在 hook 外常为空→据本 skill 目录上两级代入插件根（consult-common §3）
+
 # 1. 建留痕会话（mode=direct）
-TASK=$(uv run "${CLAUDE_PLUGIN_ROOT}/ai_client/consult_log.py" start \
+TASK=$(uv run "$ROOT/ai_client/consult_log.py" start \
   --slug <议题slug> --mode direct \
   --trigger "<启动提示词/触发原话>" \
   --host <claude|codex|cursor> \
   --models "<X>")
 
 # 2. 直问 X（分析文档加 --file，可重复）
-uv run "${CLAUDE_PLUGIN_ROOT}/ai_client/cli.py" \
+uv run "$ROOT/ai_client/cli.py" \
   --provider <X> --task "$TASK" --mode direct \
   [--file <doc> ...] \
   "<§4 角色 prompt 或用户原始问题>"

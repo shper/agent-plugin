@@ -45,7 +45,7 @@ argument-hint: "[<已有草稿文件路径>]"
 
 ### 多模型会诊（可选增援）
 
-审问到某决策分支**命中真权衡（≥2 方案取舍不明）或高风险**（写入/认证/金额，或要动项目已记录的重大架构决策）、或用户显式要求时，点燃多模型协作引擎引入第二个声音，按 `${CLAUDE_PLUGIN_ROOT}/skills/to-consult/SKILL.md` 执行：默认 panel 形态——宿主 persona 批（架构红队/价值质询/唱反调）走 `Workflow({scriptPath: "${CLAUDE_PLUGIN_ROOT}/scripts/panel.js", args})`（非 Claude 宿主主会话自扮演），并发 Bash 调 `${CLAUDE_PLUGIN_ROOT}/ai_client/cli.py` 取按宿主取的外部声音池，**当前宿主主裁**摆矛盾综合后**并回审问**继续逐问；二元对立选型可升级 `mode=debate`（详见 `${CLAUDE_PLUGIN_ROOT}/skills/to-consult/mode-debate.md`）。**克制使用**——术语对齐、能查代码即答的低风险分支不开（`to-consult/consult-common.md §6`）。引擎只产素材，结论的落盘仍按下方 Step 3 回写被审问文件本体。
+审问到某决策分支**命中真权衡（≥2 方案取舍不明）或高风险**（写入/认证/金额，或要动项目已记录的重大架构决策）、或用户显式要求时，点燃多模型协作引擎引入第二个声音，按 `${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT}/skills/to-consult/SKILL.md` 执行（插件根变量按宿主取：Claude Code = `CLAUDE_PLUGIN_ROOT`，Codex = `PLUGIN_ROOT`，详见 consult-common §3）：默认 panel 形态——宿主 persona 批（架构红队/价值质询/唱反调）走 `Workflow({scriptPath: "${CLAUDE_PLUGIN_ROOT}/scripts/panel.js", args})`（Claude Code 专属 Workflow，非 Claude 宿主主会话自扮演），并发 Bash 调 `${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT}/ai_client/cli.py` 取按宿主取的外部声音池，**当前宿主主裁**摆矛盾综合后**并回审问**继续逐问；二元对立选型可升级 `mode=debate`（详见 `${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT}/skills/to-consult/mode-debate.md`）。**克制使用**——术语对齐、能查代码即答的低风险分支不开（`to-consult/consult-common.md §6`）。引擎只产素材，结论的落盘仍按下方 Step 3 回写被审问文件本体。
 
 ## 执行步骤
 
