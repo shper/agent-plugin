@@ -143,7 +143,7 @@ cursor = ["claude", "codex"]     # 宿主 = Cursor      → 外部用 claude + c
 
 主会话据**自身宿主身份**取对应数组：池里 `[0]` / `[1]` 分别充当 debate 正/反方、refine ext0/ext1（two-way=A/B、one-way=生成/质检），panel 形态则全部当外部视角。**用户可显式覆盖**——"用 qwen 一起讨论"即把对应席位换成 `qwen`（§6 分流）。三个 CLI provider 的 `model` 缺省即用各工具**主模型**。
 
-> **跨底座独立性检测（C4，强制·非阻塞）**：取池后由 `independence.py` 静态推断各席的模型族 + 推理网关，检出"名义跨厂商、实质同源"——①外部席与主裁同族、②池内两席同族、③池内两席同网关（如多家都走同一 ark/OpenRouter 网关）、④CLI 默认 model 致族未知。重合即告警，主裁须在收口里如实暴露独立性折扣，避免多模型退化成**伪交叉验证背书**（比单模型更危险）。debate/refine 经 `orchestrate.py --host` 自动嵌入 envelope `independence`；panel 由 SKILL.md Step 4 / mode-panel §7.2 显式调 `independence.py`。
+> **跨底座独立性检测（C4，强制·非阻塞）**：取池后由 `independence.py` 静态推断各席的模型族 + 推理网关。**独立性由模型族决定，不由网关决定**——同一聚合网关（ark / OpenRouter）后挂的若是不同组织的模型，盲区天然不同、视角仍独立。故只把**模型族重合**当独立性风险（high）：①外部席与主裁同族、②池内两席同族；**同网关仅作可用性提示（low，不计折扣）**，CLI 默认 model 致族未知亦只是提示。命中 high 即告警，主裁须在收口里如实暴露同源折扣、避免多模型退化成**伪交叉验证背书**（比单模型更危险）。debate/refine 经 `orchestrate.py --host` 自动嵌入 envelope `independence`；panel 由 SKILL.md Step 4 / mode-panel §7.2 显式调 `independence.py`。
 
 主会话调用：
 

@@ -54,19 +54,26 @@ def test_pool_same_family_flagged_high():
     assert set(fam[0]["seats"]) == {"gpt_a", "gpt_b"}
 
 
-def test_user_real_config_same_gateway_ark():
-    """用户真实配置：host=claude，glm/deepseek/minimax 三席异族但同 ark 网关 → 三条 same_gateway。"""
+def test_user_real_config_same_gateway_is_not_independence_risk():
+    """用户真实配置：host=claude，glm/deepseek/minimax 三席异族、同 ark 网关。
+
+    同网关 ≠ 同源——三个不同组织的模型视角仍独立，故**不计独立性折扣**：
+    只产 low 级 shared_gateway 可用性提示，risks() 为空、INDEPENDENCE 应为 ok。
+    """
     ark = "https://ark.cn-beijing.volces.com/api/coding/v3"
     warns = independence.analyze("claude", {
         "glm": _api("glm-5.2", ark),
         "deepseek": _api("deepseek-v4-pro", ark),
         "minimax": _api("minimax-m3", ark),
     })
-    gw = [w for w in warns if w["code"] == "pool_same_gateway"]
-    assert len(gw) == 3                                   # C(3,2)=3 对同网关
-    assert all(w["level"] == "medium" for w in gw)
-    assert not [w for w in warns if w["code"] == "judge_overlap"]   # 三族均非 anthropic
-    assert not [w for w in warns if w["code"] == "family_unknown"]  # 均显式配 model
+    gw = [w for w in warns if w["code"] == "shared_gateway"]
+    assert len(gw) == 3                                   # C(3,2)=3 对同网关（仅可用性提示）
+    assert all(w["level"] == "low" for w in gw)
+    assert independence.risks(warns) == []               # 无 high → 不算独立性风险
+    assert not [w for w in warns if w["code"] == "judge_overlap"]
+    assert not [w for w in warns if w["code"] == "family_unknown"]
+    out = independence.render(warns)
+    assert "✅" in out and "不计独立性折扣" in out         # 头条是 ✅，网关只作提示
 
 
 def test_cli_unknown_model_flagged():

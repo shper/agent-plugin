@@ -7,11 +7,13 @@
 池只是 toml 数组、从无校验。名义「跨厂商」可能实质同源（同模型族、或同一推理网关），此时多模型
 会诊退化成**伪交叉验证背书**——比单模型更危险（用户以为拿到独立第三方意见，实则同质共识）。
 
-本模块从 provider 配置**静态**推断每席的模型族 + 来源网关（零网络、不发请求），检出：
-  ① 外部席与主裁（宿主主模型）同族 → 非独立第三方；
-  ② 池内两席同模型族 → 盲区互补名不副实；
-  ③ 池内两席同推理网关 → 名义跨厂商、实质同源；
-  ④ 某席模型族未知（CLI 默认未配 model）→ 无法确认独立性。
+独立性由**模型族**决定，不由网关决定——同一个聚合网关（ark / OpenRouter 等）后面挂的
+若是不同组织、不同训练数据/RLHF 的模型（如智谱 glm vs deepseek vs minimax），盲区天然不同、
+视角仍独立。故本模块只把**模型族重合**当独立性风险，**同网关仅作可用性提示**（不计折扣）。
+
+本模块从 provider 配置**静态**推断每席的模型族 + 来源网关（零网络、不发请求）：
+  独立性风险（high）：① 外部席与主裁（宿主主模型）同族 → 非独立第三方；② 池内两席同模型族 → 盲区互补名不副实；
+  提示（low，不计折扣）：③ 某席模型族未知（CLI 默认未配 model）→ 无法确认；④ 池内两席同推理网关 → 仅可用性相关（一起挂时同时降级）。
 
 非阻塞：只产告警供主裁如实暴露，绝不阻断会诊（consult-common §9「增益不是依赖」）。
 被 orchestrate.py 顶层 import（纯标准库，不破坏「无 httpx 单测」），也可作 CLI 供 panel Step 4 调。
@@ -120,10 +122,11 @@ def analyze(host: str, seats: dict[str, dict[str, Any]]) -> list[dict[str, Any]]
                     f"池内「{a}」与「{b}」同模型族（{fa}）——盲区互补名不副实", [a, b],
                 ))
             elif ga and ga == gb:
+                # 同网关 ≠ 同源：模型族不同则视角仍独立，这里只作可用性提示、不计独立性折扣。
                 warns.append(_warn(
-                    "pool_same_gateway", "medium",
-                    f"池内「{a}」与「{b}」同推理网关（{ga}）——名义跨厂商、实质同源"
-                    "（共用推理服务/安全栈），独立性打折", [a, b],
+                    "shared_gateway", "low",
+                    f"池内「{a}」与「{b}」同推理网关（{ga}）——模型族不同、视角仍独立（不计独立性折扣）；"
+                    "仅提示可用性相关：该网关故障会令两席同时降级", [a, b],
                 ))
 
     # ④ 模型族未知
@@ -145,13 +148,24 @@ def analyze(host: str, seats: dict[str, dict[str, Any]]) -> list[dict[str, Any]]
 _ICON = {"high": "🔴", "medium": "🟠", "low": "🟡"}
 
 
+def risks(warns: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """真正损害独立性的项（high）——模型族 / 与主裁同族；同网关等 low 项不算。"""
+    return [w for w in warns if w["level"] == "high"]
+
+
 def render(warns: list[dict[str, Any]]) -> str:
-    if not warns:
-        return "✅ 跨底座独立性检测：各席模型族/网关无重合，未发现伪交叉验证风险。"
-    lines = ["⚠️ 跨底座独立性检测发现重合（多模型会诊可能退化为伪交叉验证背书）："]
-    for w in warns:
-        lines.append(f"  {_ICON.get(w['level'], '·')} [{w['level']}] {w['msg']}")
-    lines.append("→ 主裁收口时应据此对相关席位标注同源折扣，重合严重者按 consult-common §9 流产。")
+    hi = risks(warns)
+    notes = [w for w in warns if w["level"] != "high"]
+    lines: list[str] = []
+    if hi:
+        lines.append("⚠️ 跨底座独立性风险（多模型会诊可能退化为伪交叉验证背书）：")
+        lines += [f"  {_ICON['high']} {w['msg']}" for w in hi]
+        lines.append("→ 主裁收口时须对相关席位标注同源折扣，重合严重者按 consult-common §9 流产。")
+    else:
+        lines.append("✅ 跨底座独立性：各外部席与主裁均无模型族重合，未发现伪交叉验证风险。")
+    if notes:
+        lines.append("提示（不计独立性折扣）：")
+        lines += [f"  {_ICON.get(w['level'], '·')} {w['msg']}" for w in notes]
     return "\n".join(lines)
 
 
@@ -177,8 +191,8 @@ def main() -> int:
 
     warns = analyze(args.host, seats)
     print(render(warns))
-    high = sum(1 for w in warns if w["level"] in ("high", "medium"))
-    print(f"INDEPENDENCE: {'warn(' + str(high) + ')' if warns else 'ok'}")
+    n = len(risks(warns))   # 只有 high（模型族/主裁同族）才算独立性风险；同网关等 low 项不计
+    print(f"INDEPENDENCE: {'warn(' + str(n) + ')' if n else 'ok'}")
     return 0  # 恒 0：检测是增益不是门禁
 
 
