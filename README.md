@@ -43,8 +43,24 @@
 #    然后在任意项目中：/agent-plugin:to-consult <议题>
 ```
 
-> 本地开发 / 未 push 时，第 1 步可直接指向工作副本：
-> `/plugin marketplace add /Users/shper/Documents/11_AI/agent-plugin`
+### 本地开发安装（未 push，指向工作副本）
+
+不必先 push 到 GitHub——第 1 步把**本地目录**当市场加进来即可，命令同样在 Claude Code 会话内输入：
+
+```text
+# 1. 把本地工作副本当市场加入（指向仓库根，即含 .claude-plugin/ 的目录）
+/plugin marketplace add /Users/shper/Documents/11_AI/agent-plugin
+
+# 2. 装插件（插件名@市场名，二者同名）
+/plugin install agent-plugin@agent-plugin
+
+# 3. 验证 → 然后任意项目中 /agent-plugin:to-consult <议题>、/agent-plugin:to-grill
+/plugin list
+```
+
+- 这是**斜杠命令**，在输入框直接敲，不是 shell 命令（不用 `!` 前缀）。
+- 本地安装下 `${CLAUDE_PLUGIN_ROOT}` 由 Claude Code 注入指向该目录；`ai_client/` 走 `uv`（先按「前置：Python 运行环境」装好 uv）。
+- 改了 skill/脚本后刷新：`/plugin marketplace update agent-plugin`，必要时再 `/plugin install agent-plugin@agent-plugin` 重装。
 
 ### 更新
 
