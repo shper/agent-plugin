@@ -64,3 +64,27 @@ def test_cli_request_repr_keeps_model_flag():
     r = p.request_repr("hello")
     assert "gpt-5" in r["cmd"]
     assert r["cmd"][-1] == "<prompt:5字·stdin>"
+
+
+# ── openai-compat 响应解析容错（防把『格式不同』误判成『不可用』）─────────────
+
+def test_extract_content_standard_shape():
+    data = {"choices": [{"message": {"content": "答案"}}]}
+    assert providers._extract_content(data, "x") == "答案"
+
+
+def test_extract_content_reasoning_model_fallback():
+    # 推理模型 content 为空 / 缺，正文在 reasoning_content
+    data = {"choices": [{"message": {"content": "", "reasoning_content": "推理后的答案"}}]}
+    assert providers._extract_content(data, "x") == "推理后的答案"
+
+
+def test_extract_content_legacy_completion_and_toplevel():
+    assert providers._extract_content({"choices": [{"text": "旧式正文"}]}, "x") == "旧式正文"
+    assert providers._extract_content({"output_text": "顶层正文"}, "x") == "顶层正文"
+
+
+def test_extract_content_unparseable_raises_clear_error():
+    import pytest as _pytest
+    with _pytest.raises(RuntimeError, match="响应解析失败"):
+        providers._extract_content({"unexpected": "shape"}, "glm")

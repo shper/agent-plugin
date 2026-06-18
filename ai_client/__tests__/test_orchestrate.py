@@ -8,6 +8,7 @@ review 仅质检模式跳过生成；单步失败转 error 不中断 + 依赖失
 from __future__ import annotations
 
 import asyncio
+import sys
 
 import orchestrate
 
@@ -222,6 +223,15 @@ def test_refine_one_way_routes_to_review():
     assert set(env["steps"]) == {"draft", "qc_report"}
     # ext0→生成(codex)、ext1→质检(cursor)：质检带生成初版
     assert "<<codex|generate>>" in _prompt_of(caller, "cursor", "质检")
+
+
+def test_refine_one_way_rejects_same_gen_and_qc(monkeypatch, capsys):
+    """one-way 质检者须 ≠ 生成者底座（CLI 守卫，在建 caller / 读 config 前即 exit 2）。"""
+    monkeypatch.setattr(sys, "argv", [
+        "orchestrate.py", "refine", "--direction", "one-way",
+        "--ext0", "qwen", "--ext1", "qwen", "任务"])
+    assert orchestrate.main() == 2
+    assert "须 ≠" in capsys.readouterr().err
 
 
 def test_refine_one_way_skip_gen_uses_material():

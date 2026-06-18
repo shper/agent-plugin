@@ -148,7 +148,7 @@ class OpenAICompatProvider(Provider):
             raise RuntimeError(f"[{self.pid}] HTTP {e.response.status_code}: {body}") from e
         except httpx.HTTPError as e:
             raise RuntimeError(f"[{self.pid}] 网络错误: {e}") from e
-        return data["choices"][0]["message"]["content"]
+        return _extract_content(data, self.pid)
 
     def request_repr(self, prompt: str) -> dict[str, Any]:
         # 铁律：不吐 api_key、不吐 messages 正文（即 prompt，consult_log 另记一次）。
@@ -161,6 +161,34 @@ class OpenAICompatProvider(Provider):
             "auth": "bearer(已隐藏)" if self.conf.get("api_key") else "none",
             "prompt_chars": len(prompt),
         }
+
+
+def _extract_content(data: dict[str, Any], pid: str) -> str:
+    """从 OpenAI 兼容响应稳健取正文，兼容推理模型 / 旧式 completion / 网关变体。
+
+    取不到才抛 RuntimeError —— 这样『模型可用但响应结构不同』不会被上层误判成『外部不可用』
+    而错误触发降级（架构红队 risk）。容错顺序：choices[].message.content →
+    .reasoning_content（推理模型 content 可能为空）→ choices[].text（旧式）→ 顶层 content/output_text。
+    """
+    choices = data.get("choices")
+    if isinstance(choices, list) and choices and isinstance(choices[0], dict):
+        msg = choices[0].get("message")
+        if isinstance(msg, dict):
+            for k in ("content", "reasoning_content"):
+                v = msg.get(k)
+                if isinstance(v, str) and v.strip():
+                    return v
+        text = choices[0].get("text")
+        if isinstance(text, str) and text.strip():
+            return text
+    for k in ("content", "output_text"):
+        v = data.get(k)
+        if isinstance(v, str) and v.strip():
+            return v
+    raise RuntimeError(
+        f"[{pid}] 响应解析失败：未找到正文（choices/message/content）。"
+        f"原始片段：{str(data)[:300]}"
+    )
 
 
 async def _run_cli(

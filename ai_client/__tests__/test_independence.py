@@ -90,6 +90,21 @@ def test_fully_heterogeneous_pool_no_warning():
     assert "✅" in independence.render(warns)
 
 
+def test_pool_notes_missing_provider_is_high():
+    provs = {"glm": _api("glm-5.2", "https://ark.example/v1")}
+    notes = independence.pool_notes(["glm", "nope"], provs, min_size=2)
+    codes = {w["code"] for w in notes}
+    assert "missing_provider" in codes
+    assert "pool_too_small" in codes              # 只剩 glm 1 个 < 2
+    assert all(w["level"] == "high" for w in notes)
+    assert independence.risks(notes)              # 计入独立性风险
+
+
+def test_pool_notes_enough_seats_no_warn():
+    provs = {"a": _api("gpt-5", "u"), "b": _api("deepseek-chat", "v")}
+    assert independence.pool_notes(["a", "b"], provs, min_size=2) == []
+
+
 def test_render_lists_warnings():
     warns = independence.analyze("claude", {"c": {"type": "claude-cli"}})
     out = independence.render(warns)

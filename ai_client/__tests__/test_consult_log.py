@@ -155,6 +155,19 @@ def test_record_call_redacts_secret_in_prompt_and_response(tmp_path, monkeypatch
     assert "已脱敏" in text
 
 
+# ── record_cards（C1：panel persona 卡回填）──────────────────────────────
+
+def test_record_cards_appends_and_redacts(tmp_path, monkeypatch):
+    monkeypatch.setattr(consult_log, "_CACHE_DIR", tmp_path)
+    consult_log.record_cards(
+        task="pc", mode="panel",
+        cards='架构红队: 风险X；含密钥 sk-LEAK0123456789abcd 应脱敏',
+    )
+    text = (tmp_path / "pc" / "session.md").read_text(encoding="utf-8")
+    assert "宿主 persona 卡" in text and "架构红队" in text
+    assert "sk-LEAK0123456789abcd" not in text and "已脱敏" in text   # 回填也走脱敏
+
+
 # ── _fmt_request ──────────────────────────────────────────────────────────
 
 def test_fmt_request_cli():

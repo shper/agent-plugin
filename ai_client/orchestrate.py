@@ -411,6 +411,10 @@ def main() -> int:
         if args.skip_gen and not material:
             print("仅质检模式（--skip-gen）需用 --file 提供待审材料", file=sys.stderr)
             return 2
+        if args.direction == "one-way" and not args.skip_gen and args.ext0 == args.ext1:
+            print("one-way 质检：--ext1（质检者）须 ≠ --ext0（生成者）底座，"
+                  "否则等于自己质检自己、H/M/L 评分失去意义", file=sys.stderr)
+            return 2
         caller = _build_caller([args.ext0, args.ext1] + fb, args.timeout,
                                task=task, mode=f"refine/{args.direction}")
         env = asyncio.run(run_refine(caller, direction=args.direction, topic=args.topic,

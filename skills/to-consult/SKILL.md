@@ -122,7 +122,7 @@ TASK=$(uv run "$ROOT/ai_client/consult_log.py" start \
   ```bash
   printf '%s' "<主裁收口结论全文>" | uv run "${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT}/ai_client/consult_log.py" verdict --task "$TASK" --mode <同 start 的 mode>
   ```
-  至此本次会诊全程（启动模式 / 模型 / 启动提示词 / 命令行或 API 请求 / 外部生响应 / 主裁结论）留痕在宿主项目 `.consult-cache/to-consult/$TASK/session.md`。注：panel 宿主 persona 卡因 `panel.js` 是 Workflow 不能写文件，**不在留痕内**（consult-common §7 已知限制）。
+  至此本次会诊全程（启动模式 / 模型 / 启动提示词 / 命令行或 API 请求 / 外部生响应 / 主裁结论）留痕在宿主项目 `.consult-cache/to-consult/$TASK/session.md`。注：panel 宿主 persona 卡虽由 Workflow 产出（不能写文件），但主会话用 `consult_log.py cards` 回填，留痕完整（C1，mode-panel §7.2）。
 - 收口结果小结给用户，提示下游：要把结论审问落文件 / 综合成 PRD，交宿主项目对应的下游 skill（如已安装）。
 
 ---

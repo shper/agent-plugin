@@ -148,8 +148,28 @@ def analyze(host: str, seats: dict[str, dict[str, Any]]) -> list[dict[str, Any]]
 _ICON = {"high": "🔴", "medium": "🟠", "low": "🟡"}
 
 
+def pool_notes(pool: list[str], provs: dict[str, Any], min_size: int = 2) -> list[dict[str, Any]]:
+    """池配置校验（C6）：provider 是否都已配 + 可用席是否够。缺失/不足即 high 告警。"""
+    notes: list[dict[str, Any]] = []
+    missing = [p for p in pool if p not in provs]
+    if missing:
+        notes.append(_warn(
+            "missing_provider", "high",
+            f"池内 provider 未配置：{missing} —— 在 ~/.agent-plugin/env.toml [providers.*] 补；"
+            "debate/refine 取 [0]/[1] 会落空、panel 少卡", missing,
+        ))
+    present = [p for p in pool if p in provs]
+    if len(present) < min_size:
+        notes.append(_warn(
+            "pool_too_small", "high",
+            f"可用外部席 {len(present)} 个 < 需要 {min_size}：debate/refine 需 2 对抗席，"
+            "当前会大面积降级到宿主底座补位（同源）", present,
+        ))
+    return notes
+
+
 def risks(warns: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """真正损害独立性的项（high）——模型族 / 与主裁同族；同网关等 low 项不算。"""
+    """真正损害独立性的项（high）——模型族 / 与主裁同族 / 池缺失或不足；同网关等 low 项不算。"""
     return [w for w in warns if w["level"] == "high"]
 
 
@@ -173,6 +193,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="跨底座独立性检测（to-consult C4）")
     parser.add_argument("--host", default="", help="宿主 claude|codex|cursor（主裁底座）")
     parser.add_argument("--pool", required=True, help="外部声音池 provider id，逗号分隔")
+    parser.add_argument("--min", type=int, default=2, dest="min_size",
+                        help="最少可用外部席（debate/refine=2；panel 可设 1）")
     args = parser.parse_args()
 
     try:
@@ -185,13 +207,10 @@ def main() -> int:
 
     pool = [p.strip() for p in args.pool.split(",") if p.strip()]
     seats = {pid: provs[pid] for pid in pool if pid in provs}
-    missing = [pid for pid in pool if pid not in provs]
-    if missing:
-        print(f"[independence] 池内未知 provider（跳过这些）：{missing}", file=sys.stderr)
 
-    warns = analyze(args.host, seats)
+    warns = pool_notes(pool, provs, args.min_size) + analyze(args.host, seats)
     print(render(warns))
-    n = len(risks(warns))   # 只有 high（模型族/主裁同族）才算独立性风险；同网关等 low 项不计
+    n = len(risks(warns))   # high=模型族/主裁同族/池缺失或不足；同网关等 low 项不计
     print(f"INDEPENDENCE: {'warn(' + str(n) + ')' if n else 'ok'}")
     return 0  # 恒 0：检测是增益不是门禁
 

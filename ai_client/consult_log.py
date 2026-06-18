@@ -8,10 +8,11 @@
   主裁收口结论）默认只进 stdout、跑完即丢。本模块是所有留痕的**单一写入点**，把它们
   追加到 `<宿主项目根>/.consult-cache/to-consult/<任务名>/session.md`（宿主项目 gitignore，属过程留痕≠产出落盘）。
 
-三条写入路径都走这里，统一 markdown 拼装与脱敏：
+四条写入路径都走这里，统一 markdown 拼装与脱敏：
   ① start    —— 主会话编排前调一次：建 `<时间戳>_<slug>/session.md` 头部，stdout 回显任务名。
   ② record_call —— cli.py / orchestrate.py 每次外部调用自动 append（请求 + prompt + 生响应）。
-  ③ verdict  —— 主会话收口后调：append 主裁收口结论（正文从 stdin 读）。
+  ③ cards    —— panel 收齐宿主 persona 卡后主会话补录（panel.js 是 Workflow 不能写文件，C1）。
+  ④ verdict  —— 主会话收口后调：append 主裁收口结论（正文从 stdin 读）。
 
 边界：
   - 纯标准库（datetime / pathlib / argparse / re），无三方依赖——可被 orchestrate 顶层 import 而不破坏「无 httpx 单测」。
@@ -230,6 +231,24 @@ def record_verdict(*, task: str, mode: str, verdict: str) -> None:
         _warn(e)
 
 
+def record_cards(*, task: str, mode: str, cards: str) -> None:
+    """补录 panel 宿主 persona 卡（C1）。非阻塞。
+
+    panel.js 是 Workflow 不能写文件，宿主 3 张 persona 卡（panel 信息密度最高的产出）本会
+    缺席留痕。主会话收齐卡后经此把它们（正文走 stdin）补进 session.md，使默认形态留痕完整可追溯。
+    """
+    try:
+        _ensure_header(task, mode)
+        block = (
+            f"\n---\n## 宿主 persona 卡（panel 补录，Workflow 不能写文件故主会话回填）· [{_clock()}]\n"
+            f"{_redact(cards.strip()) or '(空)'}\n"
+        )
+        with session_file(task).open("a", encoding="utf-8") as f:
+            f.write(block)
+    except Exception as e:  # noqa: BLE001
+        _warn(e)
+
+
 # ── CLI（start / verdict；record_call 仅作库函数供 cli.py / orchestrate.py 调）──
 
 def main() -> int:
@@ -247,6 +266,10 @@ def main() -> int:
     pv.add_argument("--task", required=True, help="start 回显的任务名")
     pv.add_argument("--mode", required=True, help="启动模式（同 start）")
 
+    pc = sub.add_parser("cards", help="补录 panel 宿主 persona 卡（正文从 stdin 读）")
+    pc.add_argument("--task", required=True, help="start 回显的任务名")
+    pc.add_argument("--mode", default="panel", help="启动模式（默认 panel）")
+
     args = parser.parse_args()
 
     if args.cmd == "start":
@@ -255,6 +278,10 @@ def main() -> int:
             host=args.host, models=args.models,
         )
         print(task)
+        return 0
+
+    if args.cmd == "cards":
+        record_cards(task=args.task, mode=args.mode, cards=sys.stdin.read())
         return 0
 
     # verdict：从 stdin 读收口正文（便于大段 markdown）
