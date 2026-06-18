@@ -39,12 +39,22 @@ def test_start_returns_timestamped_task_and_header(tmp_path, monkeypatch):
         slug="sse-vs-ws", mode="debate", trigger="辩论一下该用谁",
         host="claude", models="正方=codex / 反方=cursor",
     )
-    assert re.fullmatch(r"\d{8}-\d{6}_sse-vs-ws", task), task
+    assert re.fullmatch(r"\d{8}-\d{6}-\d{6}_sse-vs-ws", task), task   # 时间戳 + 毫秒进程后缀
     text = (tmp_path / task / "session.md").read_text(encoding="utf-8")
     assert "启动模式: debate" in text
     assert "启动提示词: 辩论一下该用谁" in text
     assert "宿主: claude" in text
     assert "正方=codex / 反方=cursor" in text
+
+
+def test_start_unique_suffix_avoids_collision_across_processes(tmp_path, monkeypatch):
+    monkeypatch.setattr(consult_log, "_CACHE_DIR", tmp_path)
+    monkeypatch.setattr(consult_log.os, "getpid", lambda: 111)
+    t1 = consult_log.start(slug="x", mode="panel")
+    monkeypatch.setattr(consult_log.os, "getpid", lambda: 222)
+    t2 = consult_log.start(slug="x", mode="panel")
+    assert t1 != t2                       # 不同进程（多终端/CI）→ 不同任务目录，不撞、不交错写
+    assert re.search(r"-\d{6}_x$", t1)    # 含 6 位毫秒+进程后缀
 
 
 # ── record_call ───────────────────────────────────────────────────────────

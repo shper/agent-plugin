@@ -52,6 +52,12 @@ def _ts() -> str:
     return datetime.now().strftime("%Y%m%d-%H%M%S")
 
 
+def _unique_suffix() -> str:
+    """毫秒 + 进程号后缀：防同秒并发（多终端 / CI 同时跑）撞同一任务目录、交错写入。"""
+    now = datetime.now()
+    return f"{now.microsecond // 1000:03d}{os.getpid() % 1000:03d}"
+
+
 def _clock() -> str:
     return datetime.now().strftime("%H:%M:%S")
 
@@ -190,8 +196,11 @@ def _ensure_header(task: str, mode: str) -> None:
 
 
 def start(*, slug: str, mode: str, trigger: str = "", host: str = "", models: str = "") -> str:
-    """建会话留痕文件，返回完整任务名 `<时间戳>_<slug>`（CLI 打到 stdout 供主会话捕获）。"""
-    task = f"{_ts()}_{_sanitize(slug)}"
+    """建会话留痕文件，返回完整任务名 `<时间戳>-<毫秒><进程>_<slug>`（CLI 打到 stdout 供主会话捕获）。
+
+    时间戳后缀（毫秒+进程号）防同秒并发撞目录（多终端 / CI），仍以时间戳打头保证可排序。
+    """
+    task = f"{_ts()}-{_unique_suffix()}_{_sanitize(slug)}"
     path = session_file(task)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(_render_header(task, mode, trigger, host, models), encoding="utf-8")

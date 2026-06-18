@@ -54,13 +54,18 @@ related:                                            # 路径相对插件根（ag
 - 判不准就按 `panel`，并提示用户"按 panel 走，要辩论/精炼请加 mode=debate|refine"。
 - 指定 provider 措辞（"用 X 一起讨论"）→ 把对应席位 provider 覆盖为 X（consult-common §6 分流）。
 
+措辞表须与本 skill `description` 的触发词**全量对齐**（描述里宣传的每个触发词都要能在此落到某形态，不靠"其它/默认"兜走）：
+
 | 措辞 | 形态 | 加载文件 |
 |---|---|---|
-| "辩论 / 选型 / 二选一 / 该用 A 还是 B" | debate | mode-debate.md |
+| "会诊 / 多模型讨论 / 压测这个方案 / 听听别的模型怎么说 / 让 X **也**看看 / 多模型看看" | panel | mode-panel.md |
+| "辩论 / 选型 / 二选一 / **该用 A 还是 B**"（须**真**二元决策，见下） | debate | mode-debate.md |
 | "互评 / 多视角打磨 / 双人对照" | refine `two-way` | mode-refine.md |
 | "质检 / 审一下这篇 / 润色 / 把关" | refine `one-way` | mode-refine.md |
 | "只用 X / 单独让 X / 让 X 分析" | direct | mode-direct.md |
-| 其它 / 默认 | panel | mode-panel.md |
+| 无任何关键词命中 | panel（默认）+ 提示"按 panel 走，要辩论/精炼请加 mode=debate\|refine" | mode-panel.md |
+
+> **debate 防误触发**：仅当议题是**待决的真二元选择**（要据此拍板）才进 debate；闲聊式"你觉得 A 好还是 B 好"、并非要做决策的随口比较 → 按 panel 或直接答，不空烧正反辩论（与 Step 2 形态适配检查一致）。
 
 ### Step 2: 触发与形态适配检查（consult-common §6）
 
