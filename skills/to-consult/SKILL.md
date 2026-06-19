@@ -78,7 +78,7 @@ related:                                            # 路径相对插件根（ag
 
 ### Step 4: 探测宿主 + 取外部声音池 + 独立性检测（consult-common §8）
 
-探测当前宿主（claude / cursor / codex），读 `~/.agent-plugin/env.toml` 的 `[to-consult.external_voices][host]` 取池（Step 1 有覆盖则用覆盖值）。池里 `[0]`/`[1]` 充当 debate 正/反方、refine ext0/ext1（two-way=A/B、one-way=生成/质检）；panel 形态则全部当外部视角。
+探测当前宿主（claude / cursor / codex），读 `~/.agent-plugin/env.toml` 的 `[council][host]` 取池（Step 1 有覆盖则用覆盖值）。池里 `[0]`/`[1]` 充当 debate 正/反方、refine ext0/ext1（two-way=A/B、one-way=生成/质检）；panel 形态则全部当外部视角。
 
 **跨底座独立性检测（C4，强制·非阻塞）**：取池后调一次 `independence.py`，按**模型族**检出真同源（外部席与主裁同族 / 池内两席同族）——杜绝多模型退化成**伪交叉验证背书**；同网关只作可用性提示、不计折扣（同网关≠同源）：
 

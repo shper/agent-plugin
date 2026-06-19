@@ -123,7 +123,7 @@ $EDITOR ~/.agent-plugin/env.toml          # CLI transport 零 key 即用；API t
 
 如需自定义位置（CI / 多份配置），设 `CONSULT_ENV_TOML` 指向目标文件即可覆盖默认路径。插件目录是共享只读资产，正式 key **别塞进去**。
 
-`env.toml` 里的 `[to-consult.external_voices]` 决定每个宿主对应取哪些外部声音；详见模板注释、`ai_client/README.md` 与 `skills/to-consult/consult-common.md` §8。
+`env.toml` 里的 `[council]` 决定每个宿主对应取哪些外部声音；详见模板注释、`ai_client/README.md` 与 `skills/to-consult/consult-common.md` §8。
 
 ## 留痕落点
 
@@ -133,7 +133,7 @@ $EDITOR ~/.agent-plugin/env.toml          # CLI transport 零 key 即用；API t
 
 ## 跨工具接入约定
 
-引擎本身**宿主无关**——主裁恒等于当前宿主主模型；外部声音按 `[to-consult.external_voices][host]` 取池。安装方式按宿主有无插件体系分两类：
+引擎本身**宿主无关**——主裁恒等于当前宿主主模型；外部声音按 `[council][host]` 取池。安装方式按宿主有无插件体系分两类：
 
 - **Claude Code / Codex**：都有原生插件体系，直接按上面「安装（Claude Code）」「安装（Codex）」两节走市场安装；skill 内脚本路径由主会话据"本 skill 安装目录上溯两级"得插件根解析（`CLAUDE_PLUGIN_ROOT` / `PLUGIN_ROOT` 仅 hook 环境可靠，非依赖项），无需手工配路径。
 - **Cursor**：暂无统一插件标准、没法一键装。在 `.cursorrules` 或项目 rules 引用本仓库的 `skills/to-consult/SKILL.md` + 同目录 `consult-common.md` + `mode-*.md` 当"会诊操作手册"；脚本调用用绝对路径或先 `export PLUGIN_ROOT=<本仓库绝对路径>`（skill 的 `${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT}` 即可命中）。

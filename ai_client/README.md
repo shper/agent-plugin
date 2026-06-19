@@ -111,7 +111,7 @@ uv run "$ROOT/ai_client/cli.py" --provider cursor "回 OK 两个字"
 
 ## 在会诊中的位置
 
-会诊是**宿主无关的多形态协作引擎**：主裁 = 当前宿主主模型。「宿主底座批」在 Claude Code 走 `Workflow`（model 限 Claude）、其它宿主主会话自扮演；「外部声音批」由主会话走 Bash 调本工具，按 `[to-consult.external_voices][host]` 取**非宿主底座**的跨厂商声音（排除同底座）。
+会诊是**宿主无关的多形态协作引擎**：主裁 = 当前宿主主模型。「宿主底座批」在 Claude Code 走 `Workflow`（model 限 Claude）、其它宿主主会话自扮演；「外部声音批」由主会话走 Bash 调本工具，按 `[council][host]` 取**非宿主底座**的跨厂商声音（排除同底座）。
 
 - **panel 形态**：外部批走 `cli.py`（每 provider 一张视角卡），宿主批走 `panel.js` / 自扮演，主裁综合。
 - **debate / refine 形态**：外部底座的多步拓扑（立论→反驳 / 生成→互评 / 生成→质检）走 `orchestrate.py` **确定性编排**成结构化 JSON；收口（裁决/合并/修订 = 宿主主裁）留主会话。

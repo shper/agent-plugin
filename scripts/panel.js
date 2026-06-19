@@ -5,7 +5,7 @@
 //   专属工具，其 model 只能是 Claude，故只有 Claude Code 宿主能用本脚本做确定性 fan-out。
 //   Codex / Cursor 宿主没有等价工具，由主会话**串行自扮演** persona（§9 正常路径），不调本脚本。
 //   两种路径产出同构角色卡；persona 底座始终 = 当前宿主底座（本脚本里即 Claude）。
-//   外部声音批（claude / codex / cursor / API，按 external_voices[host] 取池）由主会话走 Bash 调
+//   外部声音批（claude / codex / cursor / API，按 council[host] 取池）由主会话走 Bash 调
 //   ai_client/，不在此脚本。综合裁决、落盘、触发判定全留主会话（宿主 skill）。
 //   脚本不跑 Bash、不 commit、不 Edit。
 //

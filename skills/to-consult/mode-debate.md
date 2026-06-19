@@ -24,8 +24,8 @@ updated: 2026-06-18
 
 | 步骤 | 角色 | 底座 | 产出 |
 |---|---|---|---|
-| 1 立论 | 正方 | external_voices[host][0] | 3–5 核心论点 + 论据 + 反驳预判 |
-| 2 立论 | 反方 | external_voices[host][1] | 同结构（坚持反方立场） |
+| 1 立论 | 正方 | council[host][0] | 3–5 核心论点 + 论据 + 反驳预判 |
+| 2 立论 | 反方 | council[host][1] | 同结构（坚持反方立场） |
 | 3 反驳 | 正方逐条驳反方 → 反方逐条驳正方 | 外部 A / B | 后驳方已读先驳方内容 |
 | 4 初裁（含置信度） | 裁判 = 主裁 | 当前宿主主模型 | 0–100% 置信度，门控收敛 |
 | 5 裁决 | 裁判 = 主裁 | 当前宿主主模型 | §5 contract 固定输出 |
@@ -68,7 +68,7 @@ updated: 2026-06-18
 
 ### 6.1 一次性确定性编排（推荐）
 
-承接：留痕会话 `$TASK` 已建立（SKILL.md Step 5 / consult-common §7.2），外部声音池 `external_voices[host]` 已取定。
+承接：留痕会话 `$TASK` 已建立（SKILL.md Step 5 / consult-common §7.2），外部声音池 `council[host]` 已取定。
 
 ```bash
 ROOT="${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT}"   # 变量在 hook 外常为空→据本 skill 目录上两级代入插件根（consult-common §3）
@@ -81,7 +81,7 @@ uv run "$ROOT/ai_client/orchestrate.py" debate \
   [--context "<自包含背景>"] [--file <doc>]
 ```
 
-`<ext0>`/`<ext1>` = `external_voices[host]` 两席（debate 命中用户「用 X 一起讨论」分流时把对应席位覆盖为 X，见 consult-common §6）。`--fallback` 传**宿主底座** provider（Claude 宿主=某 `claude-cli` provider）：某辩方失败时脚本**确定性补位**重试、打 `degraded` 标注，降级与编排同样可复现（consult-common §9）。
+`<ext0>`/`<ext1>` = `council[host]` 两席（debate 命中用户「用 X 一起讨论」分流时把对应席位覆盖为 X，见 consult-common §6）。`--fallback` 传**宿主底座** provider（Claude 宿主=某 `claude-cli` provider）：某辩方失败时脚本**确定性补位**重试、打 `degraded` 标注，降级与编排同样可复现（consult-common §9）。
 
 输出：结构化 JSON，`steps` 含各步 text/error（补位步另带 `degraded`/`requested`/`note`），顶层 `degraded` 列降级步骤、`independence` 列跨底座同源告警（C4，传 `--host` 才有）；主会话据此读辩论记录裁决，并在裁决里如实暴露独立性折扣。
 

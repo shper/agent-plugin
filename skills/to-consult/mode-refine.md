@@ -27,7 +27,7 @@ updated: 2026-06-18
 
 | 步骤 | 角色 | 底座 | 产出 |
 |---|---|---|---|
-| 1 独立生成（**可并行**） | Agent A / Agent B | external_voices[host][0] / [1] | 同任务各出初版 |
+| 1 独立生成（**可并行**） | Agent A / Agent B | council[host][0] / [1] | 同任务各出初版 |
 | 2 交叉互评（串行） | A 评 B → B 评 A | 同上 | 逐条 **H/M/L + 评分(0–100)**，整体附质量分 |
 | 3 合并 | 主裁 = 当前宿主主模型 | 主会话 | 终稿 + 来源标注 + 差异摘要 |
 
@@ -47,8 +47,8 @@ updated: 2026-06-18
 
 | 步骤 | 角色 | 底座 | 产出 |
 |---|---|---|---|
-| 1 生成 | 生成者 | external_voices[host][0] | 按输入生成初版（**`--skip-gen` 旁路**：用户已有内容时跳过，直接进质检） |
-| 2 质检 | 质检者（**须 ≠ 生成底座**） | external_voices[host][1] | 逐条 **H/M/L** + **整体评分(0–100)** |
+| 1 生成 | 生成者 | council[host][0] | 按输入生成初版（**`--skip-gen` 旁路**：用户已有内容时跳过，直接进质检） |
+| 2 质检 | 质检者（**须 ≠ 生成底座**） | council[host][1] | 逐条 **H/M/L** + **整体评分(0–100)** |
 | 3 修订 | 主裁 = 当前宿主主模型 | 主会话 | 修订版 + 折叠质检报告 + 逐条处理说明 |
 
 ### 3.2 H/M/L 标准
@@ -94,7 +94,7 @@ updated: 2026-06-18
 
 ### 6.1 一次性确定性编排
 
-承接：留痕会话 `$TASK` 已建立（SKILL.md Step 5 / consult-common §7.2），外部声音池 `external_voices[host]` 已取定。
+承接：留痕会话 `$TASK` 已建立（SKILL.md Step 5 / consult-common §7.2），外部声音池 `council[host]` 已取定。
 
 ```bash
 ROOT="${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT}"   # 变量在 hook 外常为空→据本 skill 目录上两级代入插件根（consult-common §3）
@@ -108,7 +108,7 @@ uv run "$ROOT/ai_client/orchestrate.py" refine \
   [--context "<自包含背景>"] [--file <doc>] [--skip-gen]
 ```
 
-`<ext0>`/`<ext1>` = `external_voices[host]` 两席（refine `two-way`=A/B、`one-way`=生成/质检）。`--skip-gen` **仅 `one-way` 生效**——已有草稿时直接进质检。`--fallback` 传**宿主底座** provider：某外部步骤失败时脚本**确定性补位**重试、打 `degraded` 标注（consult-common §9）。注：`one-way` 质检者须 ≠ 生成者底座——**已在 orchestrate.py 强制**（`--ext0 == --ext1` 且非 `--skip-gen` 即 exit 2）；若两者都降级到同一 fallback 则质检失去独立性，主裁应据 `degraded` 标注折扣或流产。
+`<ext0>`/`<ext1>` = `council[host]` 两席（refine `two-way`=A/B、`one-way`=生成/质检）。`--skip-gen` **仅 `one-way` 生效**——已有草稿时直接进质检。`--fallback` 传**宿主底座** provider：某外部步骤失败时脚本**确定性补位**重试、打 `degraded` 标注（consult-common §9）。注：`one-way` 质检者须 ≠ 生成者底座——**已在 orchestrate.py 强制**（`--ext0 == --ext1` 且非 `--skip-gen` 即 exit 2）；若两者都降级到同一 fallback 则质检失去独立性，主裁应据 `degraded` 标注折扣或流产。
 
 ### 6.2 主裁收口（接 SKILL.md Step 6）
 
