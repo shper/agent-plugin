@@ -320,7 +320,7 @@ def _build_caller(
     返回的 caller 在每次外部调用前后把「请求 + prompt + 生响应/error」强制留痕（consult_log，
     非阻塞）——故 debate/refine 的每一步外部调用都自动落 session.md，核心编排函数零改动。
     """
-    from config import get_providers, load_config  # noqa: PLC0415
+    from config import get_providers, load_config, resolve_provider  # noqa: PLC0415
     from providers import build_provider  # noqa: PLC0415
 
     try:
@@ -329,13 +329,23 @@ def _build_caller(
         print(e, file=sys.stderr)
         raise SystemExit(2)
     provs = get_providers(conf)
-    missing = [p for p in dict.fromkeys(provider_ids) if p not in provs]
+    # 逐个 resolve：既认 [providers.*] 配置 id，也认内联 host spec（claude-cli:opus 等，
+    # consult-common §9 交互降级的载体）；两路都不中才算 missing。
+    resolved: dict[str, dict] = {}
+    missing: list[str] = []
+    for spec in dict.fromkeys(provider_ids):
+        r = resolve_provider(spec, provs)
+        if r is None:
+            missing.append(spec)
+        else:
+            resolved[spec] = r[1]
     if missing:
-        print(f"未知 provider: {missing}。可选：{sorted(provs)}", file=sys.stderr)
+        print(f"未知 provider: {missing}。可选：{sorted(provs)}"
+              "（或内联 host spec，如 claude-cli:opus）", file=sys.stderr)
         raise SystemExit(2)
 
     async def caller(pid: str, prompt: str) -> str:
-        provider = build_provider(pid, provs[pid])
+        provider = build_provider(pid, resolved[pid])
         request = provider.request_repr(prompt)
         role = _extract_role(prompt)
         started = time.monotonic()
@@ -424,10 +434,17 @@ def main() -> int:
 
     # 跨底座独立性检测（C4，非阻塞）：把外部两席 + 主裁的同源重合嵌入 envelope，供主裁如实暴露。
     try:
-        from config import get_providers, load_config  # noqa: PLC0415
+        from config import get_providers, load_config, resolve_provider  # noqa: PLC0415
         _provs = get_providers(load_config())
         _seat_ids = [args.pro, args.con] if args.mode == "debate" else [args.ext0, args.ext1]
-        _warns = independence.analyze(args.host, {p: _provs[p] for p in _seat_ids if p in _provs})
+        # 席位可能是内联 host spec（claude-cli:opus）——resolve 后拿 conf 给 independence
+        # 判族（infer_family 只读 type+model），故同源/异厂商判定对内联 spec 同样正确。
+        _seat_confs: dict[str, dict] = {}
+        for _p in _seat_ids:
+            _r = resolve_provider(_p, _provs)
+            if _r is not None:
+                _seat_confs[_r[0]] = _r[1]
+        _warns = independence.analyze(args.host, _seat_confs)
         if _warns:
             env["independence"] = _warns
     except Exception as e:  # noqa: BLE001 —— 检测是增益，失败不拦输出
