@@ -48,14 +48,14 @@ updated: 2026-06-18
 ROOT="${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-<主会话代入：realpath 本 SKILL.md 目录上两级的绝对路径，勿留空>}}"   # 三档缺一不可：裸二档双空→ROOT=空串→路径退化 /ai_client/…（consult-common §3）
 
 # 1. 建留痕会话（mode=direct）
-TASK=$(uv run "$ROOT/ai_client/consult_log.py" start \
+TASK=$(python3 "$ROOT/ai_client/consult_log.py" start \
   --slug <议题slug> --mode direct \
   --trigger "<启动提示词/触发原话>" \
   --host <claude|codex|cursor> \
   --models "<X>")
 
 # 2. 直问 X（分析文档加 --file，可重复）
-uv run "$ROOT/ai_client/cli.py" \
+python3 "$ROOT/ai_client/cli.py" \
   --provider <X> --task "$TASK" --mode direct \
   [--file <doc> ...] \
   "<§4 角色 prompt 或用户原始问题>"

@@ -9,7 +9,7 @@
 - **`/agent-plugin:to-consult`** — 多模型会诊**手动入口**：召集多个角色（含跨厂商模型）按某种协作拓扑出观点、当前宿主主模型收口。机制规范见 `skills/to-consult/SKILL.md`（入口 + 形态判定 + 流程）+ 同目录 `consult-common.md`（共享规范）+ `mode-{panel,debate,refine,direct}.md`（形态拓扑 / 角色 / 收口契约的单一来源）。
 - **`/agent-plugin:to-grill`** — **逐问审问**引擎：grill 式一次一个问题把模糊想法/方案/决策树逼清楚；审问已有草稿文件会回写决策段，审问对话不落盘。命中真权衡/高风险时内部点燃 to-consult。
 - **`scripts/panel.js`** — Claude Code 宿主下 panel persona 批的 Workflow fan-out。
-- **`ai_client/`** — 独立 Python 模块（cli / orchestrate / providers / consult_log / config / independence，PEP 723 + uv）。
+- **`ai_client/`** — 独立 Python 模块（cli / orchestrate / providers / consult_log / config / independence；纯标准库，`python3 ≥ 3.11`）。
 
 会诊引擎的 3 种协作形态 + 1 个单声旁路：
 
@@ -59,7 +59,7 @@
 ```
 
 - 这是**斜杠命令**，在输入框直接敲，不是 shell 命令（不用 `!` 前缀）。
-- 本地安装下 `${CLAUDE_PLUGIN_ROOT}` 由 Claude Code 注入指向该目录；`ai_client/` 走 `uv`（先按「前置：Python 运行环境」装好 uv）。
+- 本地安装下 `${CLAUDE_PLUGIN_ROOT}` 由 Claude Code 注入指向该目录；`ai_client/` 纯标准库、`python3 ≥ 3.11` 直接跑（见「前置：Python 运行环境」）。
 - 改了 skill/脚本后刷新：`/plugin marketplace update shper-agent-plugin`，必要时再 `/plugin install agent-plugin@shper-agent-plugin` 重装。
 
 ### 更新
@@ -89,24 +89,24 @@ codex plugin marketplace add shper/agent-plugin
 # 3. 重启 Codex（或开新会话）让 skill 生效，然后：/to-consult <议题>
 ```
 
-> **skill 怎么找到 ai_client**：`PLUGIN_ROOT` / `PLUGIN_DATA`（及兼容别名 `CLAUDE_PLUGIN_ROOT` / `CLAUDE_PLUGIN_DATA`）**只在插件 hook 命令的环境里**可靠存在，skill 触发的普通 Bash 里通常为空——不靠它们定位。真正的依据是：安装产物全在一个目录内（Codex 默认 `~/.codex/plugins/cache/<市场>/<插件>/<版本>/`，`ai_client/`、`scripts/` 与 `skills/` 同根），且宿主会把**本 skill 的安装目录**告诉主模型，主会话据此**上溯两级**即得插件根。故 skill 里写成 `ROOT="${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-<本 skill 目录上两级>}}"` 再 `uv run "$ROOT/ai_client/…"`，无需手工配路径（机制详见 `skills/to-consult/consult-common.md §3`）。
+> **skill 怎么找到 ai_client**：`PLUGIN_ROOT` / `PLUGIN_DATA`（及兼容别名 `CLAUDE_PLUGIN_ROOT` / `CLAUDE_PLUGIN_DATA`）**只在插件 hook 命令的环境里**可靠存在，skill 触发的普通 Bash 里通常为空——不靠它们定位。真正的依据是：安装产物全在一个目录内（Codex 默认 `~/.codex/plugins/cache/<市场>/<插件>/<版本>/`，`ai_client/`、`scripts/` 与 `skills/` 同根），且宿主会把**本 skill 的安装目录**告诉主模型，主会话据此**上溯两级**即得插件根。故 skill 里写成 `ROOT="${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-<本 skill 目录上两级>}}"` 再 `python3 "$ROOT/ai_client/…"`，无需手工配路径（机制详见 `skills/to-consult/consult-common.md §3`）。
 
 ## 安装后配置 ai_client（多模型引擎）
 
 `/plugin install` 只分发 skills / commands / 脚本等清单内容，**不**装 Python 依赖、**不**配 key。`ai_client/` 在第一次被会诊调用前需要完成下面两步（按需）。
 
-### 前置：Python 运行环境（uv）
+### 前置：Python 运行环境
 
-`ai_client/` 用 [uv](https://docs.astral.sh/uv/) + PEP 723 自管依赖——脚本头部声明 `httpx`，`uv run` 自动建隔离环境，**不污染系统 Python**。只需装一次 uv：
+`ai_client/` 是**纯标准库**实现、**零第三方依赖**，只要有 **Python ≥ 3.11**（`tomllib` 所需）即可裸 `python3` 直接跑：
 
 ```bash
-# macOS / Linux
-curl -LsSf https://astral.sh/uv/install.sh | sh
-# 或 Homebrew：brew install uv
+python3 --version   # 须 ≥ 3.11
 
-# 自检（在插件根目录下执行；应能打印 help 并自动拉起 httpx）
-uv run ai_client/cli.py --help
+# 自检（在插件根目录下执行；应能打印 help）
+python3 ai_client/cli.py --help
 ```
+
+> macOS 自带的 `python3` 可能 < 3.11。两种办法：① 自行装一份新 Python（如 `brew install python@3.13`）；② 用 [uv](https://docs.astral.sh/uv/)——脚本头部保留了 PEP 723 `requires-python`，把命令里的 `python3` 换成 `uv run` 即可由 uv 自动拉起合规 Python 并隔离运行（**可选**，非必需）。
 
 `ai_client/` 等脚本都在插件根下。**插件根变量**（Claude Code `$CLAUDE_PLUGIN_ROOT` / Codex `$PLUGIN_ROOT`）**只在插件 hook 命令的环境里**可靠存在，skill 触发的普通 Bash 里通常为空——skill 内由主会话据"本 skill 安装目录上溯两级"得插件根（详见 `skills/to-consult/consult-common.md §3`）；手动自检直接 `cd` 进插件根目录跑相对路径即可。
 
@@ -142,20 +142,20 @@ $EDITOR ~/.agent-plugin/env.toml          # CLI transport 零 key 即用；API t
 ## 手动验证
 
 ```bash
-# 1. Python 单测（mock caller，不碰真实 provider，无需 httpx）
+# 1. Python 单测（mock caller，不碰真实 provider；纯标准库直跑）
 cd /Users/shper/Documents/11_AI/agent-plugin/ai_client
 python3 -m pytest __tests__ -q
 
-# 2. uv + PEP723 依赖链
-uv run /Users/shper/Documents/11_AI/agent-plugin/ai_client/cli.py --help
+# 2. import 链自检（纯标准库，无第三方依赖）
+python3 /Users/shper/Documents/11_AI/agent-plugin/ai_client/cli.py --help
 
 # 3. 留痕落到宿主项目根（不写到插件目录）
-CLAUDE_PROJECT_DIR=/tmp/demo uv run /Users/shper/Documents/11_AI/agent-plugin/ai_client/consult_log.py \
+CLAUDE_PROJECT_DIR=/tmp/demo python3 /Users/shper/Documents/11_AI/agent-plugin/ai_client/consult_log.py \
   start --slug t --mode panel --trigger x --host claude --models codex
 ls /tmp/demo/.consult-cache/to-consult/
 
 # 4. 零 key 端到端（真实调登录态、耗额度，按需）
-uv run /Users/shper/Documents/11_AI/agent-plugin/ai_client/cli.py --provider cursor "回 OK 两个字"
+python3 /Users/shper/Documents/11_AI/agent-plugin/ai_client/cli.py --provider cursor "回 OK 两个字"
 ```
 
 ## 目录结构
@@ -180,7 +180,7 @@ agent-plugin/
 │   └── to-grill/SKILL.md
 ├── scripts/
 │   └── panel.js                # Claude Code Workflow 脚本（panel persona 批）
-├── ai_client/                  # 独立 Python 模块（uv + PEP 723）
+├── ai_client/                  # 独立 Python 模块（纯标准库，python3 ≥ 3.11）
 │   ├── cli.py
 │   ├── orchestrate.py
 │   ├── providers.py

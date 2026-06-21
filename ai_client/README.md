@@ -12,17 +12,17 @@
   | `claude-cli` | Claude（opus/sonnet…） | 复用 Claude Code 登录态，零 key | `claude -p --permission-mode plan`（print 只读） |
   | `codex-cli` | GPT 系 | 复用 ChatGPT 登录态，零 key | `codex exec --sandbox read-only --ephemeral --ignore-user-config --ignore-rules` |
   | `cursor-cli` | gpt-5 / sonnet-4 / sonnet-4-thinking … | 复用 Cursor 登录态，零 key | `cursor-agent -p --mode ask`（只读问答） |
-  | `openai-compat` | 任意 OpenAI 兼容厂商（OpenAI / DeepSeek / ollama / qwen …） | `env.toml` 填 | httpx → `/v1/chat/completions` |
+  | `openai-compat` | 任意 OpenAI 兼容厂商（OpenAI / DeepSeek / ollama / qwen …） | `env.toml` 填 | urllib → `/v1/chat/completions` |
 - **CLI transport 一律只读**：会诊角色是纯讨论，绝不让外部 agent 改文件或跑命令（`--permission-mode plan` / `read-only` 沙箱 / `--mode ask`）。
 - **claude-cli 的用途**：非 Claude 宿主（Codex / Cursor）下让 Claude 当外部盲区声音——对称补全 codex / cursor，使会诊在任何宿主都能跨底座互补（见 to-consult/consult-common.md §8）。
-- **依赖隔离**：`cli.py` 头部 PEP 723 声明 `httpx`，`uv run` 自动建隔离环境。**不污染系统 python**。
+- **零第三方依赖**：纯标准库实现（`urllib` 走 API transport、`tomllib` 读配置），**Python ≥ 3.11** 裸 `python3` 直接跑。脚本头部保留 PEP 723 `requires-python`，故 `uv run` 仍可选（自动管 Python 版本与隔离），但**非必需**。
 
 ## 文件
 
 | 文件 | 职责 |
 |---|---|
-| `cli.py` | 单声入口（PEP 723 声明 httpx）；`--provider <id> --task <t> "<prompt>"` → stdout 文本（panel 外部批 / direct 旁路），每次调用经 consult_log 留痕 |
-| `orchestrate.py` | 多形态编排入口（PEP 723）；`debate / refine`（refine 含 `--direction two-way\|one-way`）子命令确定性跑外部底座多步拓扑 → stdout 结构化 JSON；每步外部调用自动留痕（收口=宿主主裁留主会话，见 to-consult/consult-common.md §3 + mode-debate.md / mode-refine.md「编排骨架」） |
+| `cli.py` | 单声入口（纯标准库）；`--provider <id> --task <t> "<prompt>"` → stdout 文本（panel 外部批 / direct 旁路），每次调用经 consult_log 留痕 |
+| `orchestrate.py` | 多形态编排入口（纯标准库）；`debate / refine`（refine 含 `--direction two-way\|one-way`）子命令确定性跑外部底座多步拓扑 → stdout 结构化 JSON；每步外部调用自动留痕（收口=宿主主裁留主会话，见 to-consult/consult-common.md §3 + mode-debate.md / mode-refine.md「编排骨架」） |
 | `providers.py` | `Provider` 基类 + `ClaudeCli` / `CodexCli` / `CursorCli` / `OpenAICompat` 四实现 + `build_provider` 工厂；另暴露 `request_repr`（脱敏请求描述，留痕用） |
 | `consult_log.py` | 会诊留痕单一写入点（纯标准库）；`start` / `verdict` 子命令 + `record_call` 库函数 → 写 `<宿主项目根>/.consult-cache/to-consult/<任务名>/session.md`（to-consult/consult-common.md §7.2） |
 | `config.py` | 纯标准库 `tomllib` 读 `~/.agent-plugin/env.toml`（缺失自动从模板初始化并提醒填 key） |
@@ -61,36 +61,36 @@ Codex 不注入项目根变量，走第 3 条 cwd 兜底——故主会话调脚
 ```bash
 # 由会诊主会话走 Bash 调用；也可手动验证
 ROOT="${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT}"
-uv run "$ROOT/ai_client/cli.py" --provider claude "用一句话说明 CQRS 适合什么场景"
-uv run "$ROOT/ai_client/cli.py" --provider cursor "同上"
-uv run "$ROOT/ai_client/cli.py" --provider codex  "同上"
-uv run "$ROOT/ai_client/cli.py" --provider deepseek --timeout 60 "同上"
+python3 "$ROOT/ai_client/cli.py" --provider claude "用一句话说明 CQRS 适合什么场景"
+python3 "$ROOT/ai_client/cli.py" --provider cursor "同上"
+python3 "$ROOT/ai_client/cli.py" --provider codex  "同上"
+python3 "$ROOT/ai_client/cli.py" --provider deepseek --timeout 60 "同上"
 
 # --file（可重复）：由 cli.py 读出文件内容嵌入 prompt 前部，所有 transport 通用。
 # openai-compat（纯 API，如 qwen）自身读不了文件，分析文档必须走这里。
-uv run "$ROOT/ai_client/cli.py" --provider qwen --file path/to/doc.md "分析这份文档的风险"
+python3 "$ROOT/ai_client/cli.py" --provider qwen --file path/to/doc.md "分析这份文档的风险"
 ```
 
 多形态编排（debate / refine；输出结构化 JSON，收口留主会话）：
 
 ```bash
-uv run "$ROOT/ai_client/orchestrate.py" debate --pro  codex --con  cursor "用 SSE 还是 WebSocket 做实时推送"
-uv run "$ROOT/ai_client/orchestrate.py" refine --ext0 codex --ext1 cursor --direction two-way "给历史日报列表设计分页方案"
-uv run "$ROOT/ai_client/orchestrate.py" refine --ext0 codex --ext1 cursor --direction one-way --skip-gen --file draft.md "质检这份草稿"
+python3 "$ROOT/ai_client/orchestrate.py" debate --pro  codex --con  cursor "用 SSE 还是 WebSocket 做实时推送"
+python3 "$ROOT/ai_client/orchestrate.py" refine --ext0 codex --ext1 cursor --direction two-way "给历史日报列表设计分页方案"
+python3 "$ROOT/ai_client/orchestrate.py" refine --ext0 codex --ext1 cursor --direction one-way --skip-gen --file draft.md "质检这份草稿"
 ```
 
 留痕（强制，to-consult/consult-common.md §7.2）：会诊主会话编排前先 `start` 取任务名，各调用带 `--task`，收口后 `verdict` 写结论；外部各声的请求+生响应由 cli/orchestrate 自动落，脱敏（API 不记 key、prompt 占位）、非阻塞（写盘失败不中断会诊）：
 
 ```bash
 ROOT="${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT}"
-TASK=$(uv run "$ROOT/ai_client/consult_log.py" start --slug demo --mode panel \
+TASK=$(python3 "$ROOT/ai_client/consult_log.py" start --slug demo --mode panel \
   --trigger "压测这个方案" --host claude --models "codex/cursor")
-uv run "$ROOT/ai_client/cli.py" --provider cursor --task "$TASK" --mode panel --role 外部视角 "回 OK 两个字"
-printf '综合结论…' | uv run "$ROOT/ai_client/consult_log.py" verdict --task "$TASK" --mode panel
+python3 "$ROOT/ai_client/cli.py" --provider cursor --task "$TASK" --mode panel --role 外部视角 "回 OK 两个字"
+printf '综合结论…' | python3 "$ROOT/ai_client/consult_log.py" verdict --task "$TASK" --mode panel
 # → <宿主项目根>/.consult-cache/to-consult/$TASK/session.md
 ```
 
-测试（mock caller，不碰真实 provider / httpx）：
+测试（mock caller，不碰真实 provider；纯标准库直跑）：
 
 ```bash
 cd "${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT}/ai_client" && python3 -m pytest __tests__ -q
@@ -102,11 +102,11 @@ cd "${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT}/ai_client" && python3 -m pytest __tests_
 
 ```bash
 ROOT="${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT}"
-# 1. uv 读 PEP723 + 装 httpx + import 链
-uv run "$ROOT/ai_client/cli.py" --help
+# 1. import 链自检（纯标准库，无第三方依赖）
+python3 "$ROOT/ai_client/cli.py" --help
 
 # 2. 零 key CLI transport 端到端（会真实调模型、耗登录态额度）
-uv run "$ROOT/ai_client/cli.py" --provider cursor "回 OK 两个字"
+python3 "$ROOT/ai_client/cli.py" --provider cursor "回 OK 两个字"
 ```
 
 ## 在会诊中的位置

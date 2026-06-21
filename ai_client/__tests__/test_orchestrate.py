@@ -1,4 +1,4 @@
-"""orchestrate 三形态编排单测 —— mock caller，不碰真实 provider / httpx。
+"""orchestrate 三形态编排单测 —— mock caller，不碰真实 provider。
 
 覆盖：debate 拓扑顺序 + 反驳带对方立论 + 反方反驳带正方反驳(prior)；
 reflection 并行生成 + 交叉互评带对方初版；review 生成→质检 + 质检带初版；

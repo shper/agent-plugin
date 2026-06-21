@@ -1,6 +1,6 @@
 """config 内联 provider spec 解析单测（consult-common §9 host 交互降级载体）。
 
-只测纯函数 parse_inline_spec / resolve_provider，不读盘、不碰 httpx。
+只测纯函数 parse_inline_spec / resolve_provider，不读盘、不发网络。
 """
 
 from __future__ import annotations

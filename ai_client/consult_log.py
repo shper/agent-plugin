@@ -15,7 +15,7 @@
   ④ verdict  —— 主会话收口后调：append 主裁收口结论（正文从 stdin 读）。
 
 边界：
-  - 纯标准库（datetime / pathlib / argparse / re），无三方依赖——可被 orchestrate 顶层 import 而不破坏「无 httpx 单测」。
+  - 纯标准库（datetime / pathlib / argparse / re），无三方依赖——可被 orchestrate 顶层 import。
   - 脱敏：①API 请求**绝不含 api_key**、不含 messages 正文；②CLI prompt 走 stdin、命令行只留占位（不进 argv/进程表）；
     ③落盘的 prompt/响应**正文**经敏感串脱敏（密钥/令牌/私钥占位，见 `_redact`）——兜底而非保证，敏感议题是否会诊仍由用户判断。
   - **非阻塞**：record_* 写盘失败只 warn 到 stderr，绝不抛错中断会诊（对齐 to-consult/consult-common.md §9「增益不是依赖」）。

@@ -1,18 +1,11 @@
-"""providers.request_repr 脱敏单测 —— **需 httpx**（providers 顶层 import httpx）。
-
-无 httpx 环境（如 conftest 注释的 `python3 -m pytest` 裸跑）会自动 skip 整个文件，不报错。
-带 httpx 跑：`cd .harness/ai_client && uv run --with httpx python -m pytest __tests__/test_providers_request_repr.py -q`
+"""providers.request_repr 脱敏单测 —— 纯标准库，`python3 -m pytest` 直跑（providers 已无三方依赖）。
 
 脱敏铁律：API request_repr 不含 api_key、不含 messages 正文；CLI cmd 末项是 prompt 占位、不含完整 prompt。
 """
 
 from __future__ import annotations
 
-import pytest
-
-pytest.importorskip("httpx")  # 无 httpx 则跳过本文件，不拖垮纯标准库测试集
-
-import providers  # noqa: E402 —— 须在 importorskip 之后
+import providers
 
 
 def test_api_request_repr_redacts_key_and_body():

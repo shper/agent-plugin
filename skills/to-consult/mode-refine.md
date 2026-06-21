@@ -98,7 +98,7 @@ updated: 2026-06-18
 
 ```bash
 ROOT="${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-<主会话代入：realpath 本 SKILL.md 目录上两级的绝对路径，勿留空>}}"   # 三档缺一不可：裸二档双空→ROOT=空串→路径退化 /ai_client/…（consult-common §3）
-uv run "$ROOT/ai_client/orchestrate.py" refine \
+python3 "$ROOT/ai_client/orchestrate.py" refine \
   --task "$TASK" \
   --ext0 <ext0> --ext1 <ext1> \
   --fallback <宿主底座 provider> \

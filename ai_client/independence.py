@@ -16,10 +16,10 @@
   提示（low，不计折扣）：③ 某席模型族未知（CLI 默认未配 model）→ 无法确认；④ 池内两席同推理网关 → 仅可用性相关（一起挂时同时降级）。
 
 非阻塞：只产告警供主裁如实暴露，绝不阻断会诊（consult-common §9「增益不是依赖」）。
-被 orchestrate.py 顶层 import（纯标准库，不破坏「无 httpx 单测」），也可作 CLI 供 panel Step 4 调。
+被 orchestrate.py 顶层 import（纯标准库），也可作 CLI 供 panel Step 4 调。
 
 用法（CLI）：
-  uv run "$ROOT/ai_client/independence.py" --host claude --pool glm,deepseek,minimax
+  python3 "$ROOT/ai_client/independence.py" --host claude --pool glm,deepseek,minimax
   → 人读告警 + 末行 `INDEPENDENCE: ok|warn(N)`；exit 0 恒成立（非阻塞）。
 """
 

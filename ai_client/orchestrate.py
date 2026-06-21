@@ -1,6 +1,5 @@
 # /// script
 # requires-python = ">=3.11"
-# dependencies = ["httpx>=0.28"]
 # ///
 """多形态协作编排 —— debate / refine 的外部底座多步拓扑。
 
@@ -15,8 +14,8 @@ refine（精炼）一形态两方向，互评方向作参数（原 reflection + 
   two-way = 双声独立生成 + 交叉互评 + 合并；one-way = 生成 + 单向质检 + 修订（--skip-gen 仅质检）。
 
 用法（主会话走 Bash；ROOT = 插件根，CLAUDE_PLUGIN_ROOT/PLUGIN_ROOT 仅 hook 环境可靠、skill 内据 skill 目录上两级代入；分析文档加 --file，可重复）：
-  uv run "$ROOT/ai_client/orchestrate.py" debate --pro  codex --con  cursor "<议题>" [--context ...] [--file ...] [--fallback <宿主底座>]
-  uv run "$ROOT/ai_client/orchestrate.py" refine --ext0 codex --ext1 cursor "<任务>" [--direction two-way|one-way] [--context ...] [--file ...] [--skip-gen] [--fallback <宿主底座>]
+  python3 "$ROOT/ai_client/orchestrate.py" debate --pro  codex --con  cursor "<议题>" [--context ...] [--file ...] [--fallback <宿主底座>]
+  python3 "$ROOT/ai_client/orchestrate.py" refine --ext0 codex --ext1 cursor "<任务>" [--direction two-way|one-way] [--context ...] [--file ...] [--skip-gen] [--fallback <宿主底座>]
 
 降级（§9）已下沉为确定性：给 --fallback <宿主底座 provider> 后，任一外部步骤失败即由该底座补位重试，
 对应步骤打 degraded=True + requested + note（同源折扣），envelope 顶层附 degraded 列表——不再依赖主会话读 JSON 后自觉手动补位。
@@ -25,7 +24,7 @@ stdout = 结构化 JSON；主会话解析后由当前宿主主模型按 to-consu
 exit: 0 全部步骤成功 / 1 有步骤失败或跳过（JSON 仍输出，error 字段标注，主会话据此降级）/ 2 配置或参数错误。
 
 核心编排函数依赖注入 `caller`（async (provider_id, prompt) -> str），顶层**不** import
-providers / httpx（延迟到 CLI 内），故可在无 httpx 环境单测（mock caller）。
+providers（延迟到 CLI 内），故可脱离 provider transport 单测（mock caller）。
 """
 
 from __future__ import annotations
@@ -39,7 +38,7 @@ import time
 from pathlib import Path
 from typing import Awaitable, Callable
 
-import consult_log  # 纯标准库，顶层 import 不破坏「无 httpx 单测」（单测 mock caller 不走 _build_caller）
+import consult_log  # 纯标准库，顶层 import；单测 mock caller 不走 _build_caller（不触发 provider transport）
 import independence  # 同上纯标准库：跨底座独立性检测（C4），结果嵌入 envelope 供主裁如实暴露
 
 # caller: 把一个 prompt 发给某 provider，返回纯文本；失败抛异常（由 _step 捕获）。
@@ -296,7 +295,7 @@ async def run_refine(
     return env
 
 
-# ── CLI（真实 caller 在此延迟构造，避免顶层 import httpx）────────────────────
+# ── CLI（真实 caller 在此延迟构造，避免顶层 import providers）──────────────────
 
 _ROLE_RE = re.compile(r"【(.+?)】")
 

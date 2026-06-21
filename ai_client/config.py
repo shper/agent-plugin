@@ -1,6 +1,6 @@
 """读取 ai_client 的 env.toml —— 缺失时自动从 example.env.toml 初始化并提醒填 base_url/key。
 
-纯标准库（tomllib，Python 3.11+），不依赖 httpx；httpx 只在 providers 的 API transport 用到。
+纯标准库（tomllib，Python 3.11+），无三方依赖。providers 的 API transport 也用标准库 urllib。
 插件化后：插件目录是共享只读资产，密钥不塞进去——配置统一落在用户主目录 ~/.agent-plugin/env.toml，
 与插件安装目录解耦（跨版本升级不丢配置）。
 """

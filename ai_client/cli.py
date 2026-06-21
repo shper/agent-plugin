@@ -1,14 +1,13 @@
 # /// script
 # requires-python = ">=3.11"
-# dependencies = ["httpx>=0.28"]
 # ///
 """ai_client CLI 入口 —— 调外部模型，stdout 返回纯文本。
 
 由会诊的主 Agent 走 Bash 调用（ROOT = 插件根；CLAUDE_PLUGIN_ROOT/PLUGIN_ROOT 仅 hook 环境可靠，skill 内由主会话据 skill 目录上两级代入，手动跑则自行 export 或在插件根下跑）：
-    uv run "$ROOT/ai_client/cli.py" --provider cursor --task <t> --mode panel --role 外部视角 "<角色 prompt>"
-    uv run "$ROOT/ai_client/cli.py" --provider qwen --task <t> --file path/to/doc.md "分析这份文档"
+    python3 "$ROOT/ai_client/cli.py" --provider cursor --task <t> --mode panel --role 外部视角 "<角色 prompt>"
+    python3 "$ROOT/ai_client/cli.py" --provider qwen --task <t> --file path/to/doc.md "分析这份文档"
 
-uv 读本文件头部 PEP 723 内联依赖，自动建隔离环境装 httpx；不污染系统 python。
+纯标准库实现（需 Python ≥ 3.11），裸 python3 直接跑、无第三方依赖；`uv run` 仍可选（自动管 Python 版本与隔离）。
 provider id 来自 .env.toml 的 [providers.<id>]。
 --file 由本 CLI 读出文件内容嵌入 prompt 前部——所有 transport 通用，尤其 openai-compat（纯 API）
 自身无文件访问能力，必须靠这里读出嵌入。

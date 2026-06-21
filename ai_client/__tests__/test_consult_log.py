@@ -1,4 +1,4 @@
-"""consult_log 留痕单测 —— 纯标准库，随 `python3 -m pytest __tests__ -q` 跑（无需 httpx）。
+"""consult_log 留痕单测 —— 纯标准库，随 `python3 -m pytest __tests__ -q` 跑。
 
 覆盖：_sanitize 防目录穿越 + 保留中文；start 回显任务名格式 + 头部内容；
 record_call 追加（请求占位 / prompt / 生响应 / error 分支）；record_call 写盘失败不抛（非阻塞）；

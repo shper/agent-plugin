@@ -1,15 +1,11 @@
 """cli.probe-models 解析单测（cursor --list-models stdout → 裸模型名）。
 
-cli 顶层 import providers → httpx，故无 httpx 环境跳过（与 conftest「无 httpx 单测」约定一致）。
+cli / providers 已无三方依赖（纯标准库），`python3 -m pytest` 直跑。
 """
 
 from __future__ import annotations
 
-import pytest
-
-pytest.importorskip("httpx")
-
-import cli  # noqa: E402
+import cli
 
 
 def test_parse_cursor_models_real_format():
