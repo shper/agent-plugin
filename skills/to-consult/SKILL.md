@@ -80,6 +80,8 @@ related:                                            # 路径相对插件根（ag
 
 探测当前宿主（claude / cursor / codex），读 `~/.agent-plugin/env.toml` 的 `[council][host]` 取池（Step 1 有覆盖则用覆盖值）。池里 `[0]`/`[1]` 充当 debate 正/反方、refine ext0/ext1（two-way=A/B、one-way=生成/质检）；panel 形态则全部当外部视角。
 
+**取不到任何可用外部声音**（env 未配 → `get_providers` 空 / `[council][host]` 空或缺键）→ **不静默退单模型**，进 consult-common **§9.1 host 交互降级**：`uv run "$ROOT/ai_client/cli.py" probe-models --host <host>` 探测 host 可调模型 → `AskUserQuestion` **逐角色**让用户选模型扮演各席（选定项当内联 spec `type:model` 透传，§6）；用户跳过 / 非交互环境才落 §9 单模型兜底。（外部批跑后才发现**全部失效**的情形同样进 §9.1，见 Step 6。）
+
 **跨底座独立性检测（C4，强制·非阻塞）**：取池后调一次 `independence.py`，按**模型族**检出真同源（外部席与主裁同族 / 池内两席同族）——杜绝多模型退化成**伪交叉验证背书**；同网关只作可用性提示、不计折扣（同网关≠同源）：
 
 ```bash
@@ -110,7 +112,9 @@ TASK=$(uv run "$ROOT/ai_client/consult_log.py" start \
 - refine → `./mode-refine.md` §6（`orchestrate.py refine --direction two-way|one-way`）
 - direct → 已在 Step 1 早退，不进入此步
 
-某步 `error`/`skipped` → 按 consult-common §9 降级（外部不足用宿主底座补位，收口角色恒=主裁）。
+各形态席位 provider 来源 = `council[host]` 池，**或** Step 4 / §9.1 交互降级时用户选定的**内联 spec**（`type:model`，如 `cursor-cli:gpt-5.2`，直接当 `--provider`/`--pro`/`--ext0` 等的值透传）。
+
+某步 `error`/`skipped` → 按 consult-common §9 降级（外部不足用宿主底座补位，收口角色恒=主裁）；若**外部批全部失效**（取不到任何独立外部声）→ 进 §9.1 host 交互降级（probe + 逐角色选 host 模型），用户跳过 / 非交互才落单模型。
 
 ### Step 7: 主裁收口（mode 文件中的收口契约）
 

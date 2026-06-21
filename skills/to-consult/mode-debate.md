@@ -88,7 +88,7 @@ uv run "$ROOT/ai_client/orchestrate.py" debate \
   [--context "<自包含背景>"] [--file <doc>]
 ```
 
-`<ext0>`/`<ext1>` = `council[host]` 两席（debate 命中用户「用 X 一起讨论」分流时把对应席位覆盖为 X，见 consult-common §6）。`--fallback` 传**宿主底座** provider（Claude 宿主=某 `claude-cli` provider）：某辩方失败时脚本**确定性补位**重试、打 `degraded` 标注，降级与编排同样可复现（consult-common §9）。
+`<ext0>`/`<ext1>` = `council[host]` 两席（debate 命中用户「用 X 一起讨论」分流时把对应席位覆盖为 X，见 consult-common §6），**也可是 §9.1 host 交互降级时用户逐角色选定的内联 spec**（`--pro cursor-cli:gpt-5.2 --con claude-cli:opus`，立场分配不变）。`--fallback` 传**宿主底座** provider（Claude 宿主=某 `claude-cli` provider）：某辩方失败时脚本**确定性补位**重试、打 `degraded` 标注，降级与编排同样可复现（consult-common §9）。env 不可用导致两席本就取不到 → 先按 consult-common **§9.1** probe + 让用户逐角色选 host 模型当正/反方，再跑。
 
 输出：结构化 JSON，`steps` 含各步 text/error（补位步另带 `degraded`/`requested`/`note`），顶层 `degraded` 列降级步骤、`independence` 列跨底座同源告警（C4，传 `--host` 才有）；主会话据此读辩论记录裁决，并在裁决里如实暴露独立性折扣。
 

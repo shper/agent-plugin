@@ -149,6 +149,6 @@ args = {
 4. 收齐两批角色卡 → 主裁按 §6 综合契约收口。
 5. 收口结论按 SKILL.md Step 8 写入留痕（`consult_log.py verdict`）。
 
-降级：某外部席位失败跳过该卡（少一张，不补位）；persona schema 漂移重派 1 次，仍漂移按缺席处理（详见 consult-common §9）。
+降级：某外部席位失败跳过该卡（少一张，不补位）；persona schema 漂移重派 1 次，仍漂移按缺席处理（详见 consult-common §9）。**外部批全部失败 / 池本就为空**（取不到任何独立外部声）→ 不止留 3 张宿主 persona 自检，先进 consult-common **§9.1 host 交互降级**：probe + 逐角色让用户选 host 模型当各外部视角席（`--provider` 传内联 spec `type:model`，lens 分配不变）；用户跳过 / 非交互才退纯宿主 persona + 主裁。
 
 > 留痕完整性（C1 已补）：`panel.js`（Workflow）本身不能写文件，但主会话收齐后用 `consult_log.py cards` **回填** 3 张宿主 persona 卡——默认形态 panel 的留痕不再缺最有料的那批（外部批与主裁收口照常自动留，见 consult-common §7.2）。
