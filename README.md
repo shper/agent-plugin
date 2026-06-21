@@ -21,8 +21,6 @@
 | `refine` (`one-way`) | 单向质检修订 | 初版 + 质检 → 主裁修订 |
 | `direct` | 用户点名"只用 X" | 单底座直问 + 原样转述（非协作） |
 
-机制全文见 `skills/to-consult/SKILL.md`（入口 + 形态判定 + 流程）+ 同目录 `consult-common.md`（共享规范）+ `mode-{panel,debate,refine,direct}.md`（形态专属）。
-
 ## 安装（Claude Code）
 
 本仓库同时是**插件**（`.claude-plugin/plugin.json`，插件名 `agent-plugin`）和**单插件市场**（`.claude-plugin/marketplace.json`，市场名 `shper-agent-plugin`，把 `./` 注册为插件 `agent-plugin`），所以安装走标准的"加市场 → 装插件"两步。**插件名与市场名不同名**（装插件时格式为 `插件名@市场名`）。命令均在 Claude Code 会话内输入。
@@ -108,7 +106,7 @@ python3 ai_client/cli.py --help
 
 > macOS 自带的 `python3` 可能 < 3.11。两种办法：① 自行装一份新 Python（如 `brew install python@3.13`）；② 用 [uv](https://docs.astral.sh/uv/)——脚本头部保留了 PEP 723 `requires-python`，把命令里的 `python3` 换成 `uv run` 即可由 uv 自动拉起合规 Python 并隔离运行（**可选**，非必需）。
 
-`ai_client/` 等脚本都在插件根下。**插件根变量**（Claude Code `$CLAUDE_PLUGIN_ROOT` / Codex `$PLUGIN_ROOT`）**只在插件 hook 命令的环境里**可靠存在，skill 触发的普通 Bash 里通常为空——skill 内由主会话据"本 skill 安装目录上溯两级"得插件根（详见 `skills/to-consult/consult-common.md §3`）；手动自检直接 `cd` 进插件根目录跑相对路径即可。
+手动自检直接 `cd` 进插件根目录跑相对路径即可。skill 触发时如何定位插件根（插件根变量仅 hook 环境可靠，靠"本 skill 安装目录上溯两级"兜底）见上方「安装（Codex）」注与 `skills/to-consult/consult-common.md §3`。
 
 ### 外部模型 key（仅 OpenAI 兼容厂商需要）
 
@@ -135,28 +133,9 @@ $EDITOR ~/.agent-plugin/env.toml          # CLI transport 零 key 即用；API t
 
 引擎本身**宿主无关**——主裁恒等于当前宿主主模型；外部声音按 `[council][host]` 取池。安装方式按宿主有无插件体系分两类：
 
-- **Claude Code / Codex**：都有原生插件体系，直接按上面「安装（Claude Code）」「安装（Codex）」两节走市场安装；skill 内脚本路径由主会话据"本 skill 安装目录上溯两级"得插件根解析（`CLAUDE_PLUGIN_ROOT` / `PLUGIN_ROOT` 仅 hook 环境可靠，非依赖项），无需手工配路径。
+- **Claude Code / Codex**：都有原生插件体系，直接按上面「安装（Claude Code）」「安装（Codex）」两节走市场安装，无需手工配路径（脚本如何定位插件根见「安装（Codex）」注）。
 - **Cursor**：暂无统一插件标准、没法一键装。在 `.cursorrules` 或项目 rules 引用本仓库的 `skills/to-consult/SKILL.md` + 同目录 `consult-common.md` + `mode-*.md` 当"会诊操作手册"；脚本调用用绝对路径或先 `export PLUGIN_ROOT=<本仓库绝对路径>`（skill 的 `${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT}` 即可命中）。
 - 三个工具的登录态彼此独立，但 `ai_client/` 通过 CLI 子进程复用各自登录态——任何一个工具当宿主，另两个都能作为外部声音。
-
-## 手动验证
-
-```bash
-# 1. Python 单测（mock caller，不碰真实 provider；纯标准库直跑）
-cd /Users/shper/Documents/11_AI/agent-plugin/ai_client
-python3 -m pytest __tests__ -q
-
-# 2. import 链自检（纯标准库，无第三方依赖）
-python3 /Users/shper/Documents/11_AI/agent-plugin/ai_client/cli.py --help
-
-# 3. 留痕落到宿主项目根（不写到插件目录）
-CLAUDE_PROJECT_DIR=/tmp/demo python3 /Users/shper/Documents/11_AI/agent-plugin/ai_client/consult_log.py \
-  start --slug t --mode panel --trigger x --host claude --models codex
-ls /tmp/demo/.consult-cache/to-consult/
-
-# 4. 零 key 端到端（真实调登录态、耗额度，按需）
-python3 /Users/shper/Documents/11_AI/agent-plugin/ai_client/cli.py --provider cursor "回 OK 两个字"
-```
 
 ## 目录结构
 
@@ -191,9 +170,14 @@ agent-plugin/
 │   ├── README.md
 │   └── __tests__/
 ├── README.md                   # 本文件
+├── LICENSE                     # MIT 许可全文
 └── .gitignore
 ```
 
 ## 许可
 
-MIT
+MIT License · Copyright (c) 2026 Shper（全文见仓库根 [`LICENSE`](./LICENSE)）。
+
+- 允许免费用于商用 / 私用，可自由复制、修改、合并、再分发、再授权，唯一义务是在副本中保留版权与许可声明。
+- 软件按"原样"提供，不含任何明示或默示担保；作者不对使用造成的任何损害负责。
+- 仅覆盖本仓库自身代码（skills / `ai_client/` / `scripts/`）。`ai_client/` 经 CLI 子进程调用的外部工具（`claude` / `codex` / `cursor`）及任何 OpenAI 兼容厂商各自遵循其许可与服务条款，不在此范围内。
