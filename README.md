@@ -9,7 +9,7 @@
 - **`/agent-plugin:to-consult`** — 多模型会诊**手动入口**：召集多个角色（含跨厂商模型）按某种协作拓扑出观点、当前宿主主模型收口。机制规范见 `skills/to-consult/SKILL.md`（入口 + 形态判定 + 流程）+ 同目录 `consult-common.md`（共享规范）+ `mode-{panel,debate,refine,direct}.md`（形态拓扑 / 角色 / 收口契约的单一来源）。
 - **`/agent-plugin:to-grill`** — **逐问审问**引擎：grill 式一次一个问题把模糊想法/方案/决策树逼清楚；审问已有草稿文件会回写决策段，审问对话不落盘。命中真权衡/高风险时内部点燃 to-consult。
 - **`scripts/panel.js`** — Claude Code 宿主下 panel persona 批的 Workflow fan-out。
-- **`ai_client/`** — 独立 Python 模块（cli / orchestrate / providers / consult_log，PEP 723 + uv）。
+- **`ai_client/`** — 独立 Python 模块（cli / orchestrate / providers / consult_log / config / independence，PEP 723 + uv）。
 
 会诊引擎的 3 种协作形态 + 1 个单声旁路：
 
@@ -25,7 +25,7 @@
 
 ## 安装（Claude Code）
 
-本仓库同时是**插件**（`.claude-plugin/plugin.json`）和**单插件市场**（`.claude-plugin/marketplace.json`，把 `./` 注册为 `agent-plugin`），所以安装走标准的"加市场 → 装插件"两步。命令均在 Claude Code 会话内输入。
+本仓库同时是**插件**（`.claude-plugin/plugin.json`，插件名 `agent-plugin`）和**单插件市场**（`.claude-plugin/marketplace.json`，市场名 `shper-agent-plugin`，把 `./` 注册为插件 `agent-plugin`），所以安装走标准的"加市场 → 装插件"两步。**插件名与市场名不同名**（装插件时格式为 `插件名@市场名`）。命令均在 Claude Code 会话内输入。
 
 ```text
 # 1. 添加市场（marketplace）—— GitHub 简写
@@ -35,8 +35,8 @@
 #    /plugin marketplace add git@github.com:shper/agent-plugin.git
 #    /plugin marketplace add https://github.com/shper/agent-plugin.git
 
-# 2. 安装插件（格式：插件名@市场名，二者同名）
-/plugin install agent-plugin@agent-plugin
+# 2. 安装插件（格式：插件名@市场名 → agent-plugin@shper-agent-plugin）
+/plugin install agent-plugin@shper-agent-plugin
 
 # 3. 验证
 /plugin list
@@ -51,8 +51,8 @@
 # 1. 把本地工作副本当市场加入（指向仓库根，即含 .claude-plugin/ 的目录）
 /plugin marketplace add /Users/shper/Documents/11_AI/agent-plugin
 
-# 2. 装插件（插件名@市场名，二者同名）
-/plugin install agent-plugin@agent-plugin
+# 2. 装插件（插件名@市场名 → agent-plugin@shper-agent-plugin）
+/plugin install agent-plugin@shper-agent-plugin
 
 # 3. 验证 → 然后任意项目中 /agent-plugin:to-consult <议题>、/agent-plugin:to-grill
 /plugin list
@@ -60,20 +60,20 @@
 
 - 这是**斜杠命令**，在输入框直接敲，不是 shell 命令（不用 `!` 前缀）。
 - 本地安装下 `${CLAUDE_PLUGIN_ROOT}` 由 Claude Code 注入指向该目录；`ai_client/` 走 `uv`（先按「前置：Python 运行环境」装好 uv）。
-- 改了 skill/脚本后刷新：`/plugin marketplace update agent-plugin`，必要时再 `/plugin install agent-plugin@agent-plugin` 重装。
+- 改了 skill/脚本后刷新：`/plugin marketplace update shper-agent-plugin`，必要时再 `/plugin install agent-plugin@shper-agent-plugin` 重装。
 
 ### 更新
 
 仓库推了新版本后：
 
 ```text
-/plugin marketplace update agent-plugin   # 拉取市场最新清单
-/plugin install agent-plugin@agent-plugin # 重装到新版本
+/plugin marketplace update shper-agent-plugin   # 拉取市场最新清单
+/plugin install agent-plugin@shper-agent-plugin # 重装到新版本
 ```
 
 ## 安装（Codex）
 
-Codex 有与 Claude Code 几乎对称的插件体系，本仓库已同时是 **Codex 插件**（`.codex-plugin/plugin.json`，声明 `"skills": "./skills/"`）和 **Codex 单插件市场**（`.agents/plugins/marketplace.json`，把 `./` 注册为 `agent-plugin`）。同样走"加市场 → 装插件"两步，命令在 Codex 内输入。
+Codex 有与 Claude Code 几乎对称的插件体系，本仓库已同时是 **Codex 插件**（`.codex-plugin/plugin.json`，声明 `"skills": "./skills/"`）和 **Codex 单插件市场**（`.agents/plugins/marketplace.json`，市场名 `shper-agent-plugin`，把 `./` 注册为插件 `agent-plugin`）。同样走"加市场 → 装插件"两步，命令在 Codex 内输入。
 
 ```text
 # 1. 添加市场（GitHub 简写）
@@ -186,6 +186,7 @@ agent-plugin/
 │   ├── providers.py
 │   ├── consult_log.py
 │   ├── config.py
+│   ├── independence.py         # 跨底座独立性检测（模型族/网关重合告警，非阻塞）
 │   ├── example.env.toml
 │   ├── README.md
 │   └── __tests__/
