@@ -1,6 +1,6 @@
 {
   "name": "agent-plugin",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "宿主无关的多模型会诊引擎：3 协作形态（panel / debate / refine）+ 单声旁路（direct）。当前宿主主模型收口，跨厂商外部声音按宿主取池做盲区互补。",
   "author": "Shper <shper87@gmail.com>",
   "homepage": "https://github.com/shper/agent-plugin",

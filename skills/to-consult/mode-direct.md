@@ -45,7 +45,7 @@ updated: 2026-06-18
 ## 5. 编排骨架
 
 ```bash
-ROOT="${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT}"   # 变量在 hook 外常为空→据本 skill 目录上两级代入插件根（consult-common §3）
+ROOT="${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-<主会话代入：realpath 本 SKILL.md 目录上两级的绝对路径，勿留空>}}"   # 三档缺一不可：裸二档双空→ROOT=空串→路径退化 /ai_client/…（consult-common §3）
 
 # 1. 建留痕会话（mode=direct）
 TASK=$(uv run "$ROOT/ai_client/consult_log.py" start \
@@ -63,6 +63,7 @@ uv run "$ROOT/ai_client/cli.py" \
 
 - `--file` 由 `cli.py` 读出嵌入 prompt 前部，**所有 transport 通用**（尤其 `openai-compat` 这类纯 API，如 qwen，自身无文件访问能力，必须靠这里读出嵌入）。
 - 答案**原样转述** + 一句警示："这是 X 单方观点、未经多模型交叉验证；要摆矛盾压测走 panel/debate"。
+- 转述时**保留 X 给出的推荐理由与优缺点/弊端说明**，不削成裸结论；若 X 给了方案却没交代利弊，如实点出"X 未展开优缺点"，便于用户判断是否需升级协作形态再压一遍。
 
 ## 6. 失败处理
 
